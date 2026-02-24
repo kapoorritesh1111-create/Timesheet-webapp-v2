@@ -1,6 +1,7 @@
 // src/app/admin/page.tsx
 "use client";
 
+import AdminTabs from "../../components/admin/AdminTabs";
 import { useEffect, useMemo, useState } from "react";
 import RequireOnboarding from "../../components/auth/RequireOnboarding";
 import AppShell from "../../components/layout/AppShell";
@@ -211,9 +212,9 @@ function AdminInner() {
   }
 
   return (
-    <AppShell title="Admin" subtitle="Invite users and maintain org setup">
-      <AdminTabs />
-
+  <AppShell title="Admin" subtitle="Invite users and maintain org setup">
+    <AdminTabs active="invite" />
+    
       {msg ? (
         <div
           className="card cardPad"
