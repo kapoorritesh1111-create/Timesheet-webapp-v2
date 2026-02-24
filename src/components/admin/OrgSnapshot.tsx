@@ -10,17 +10,33 @@ type Snapshot = {
   contractors_active: number;
   projects_total: number;
   projects_active: number;
-  hours_month: number; // total hours current month
+  hours_month: number;
   pending_invites: number;
 };
 
-function startOfMonthISO(d = new Date()) {
-  const x = new Date(d.getFullYear(), d.getMonth(), 1);
-  return x.toISOString();
+function startOfMonthDate(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
-function startOfNextMonthISO(d = new Date()) {
-  const x = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-  return x.toISOString();
+function startOfNextMonthDate(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+}
+
+function isoDateOnly(dt: Date) {
+  // YYYY-MM-DD
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseTimeToMinutes(t: string | null) {
+  // Supabase returns TIME as "HH:MM:SS" typically
+  if (!t) return null;
+  const parts = t.split(":").map((x) => Number(x));
+  if (parts.length < 2 || parts.some((n) => Number.isNaN(n))) return null;
+  const hh = parts[0] ?? 0;
+  const mm = parts[1] ?? 0;
+  return hh * 60 + mm;
 }
 
 export default function OrgSnapshot() {
@@ -68,27 +84,38 @@ export default function OrgSnapshot() {
         const projects_total = (projs ?? []).length;
         const projects_active = (projs ?? []).filter((p: any) => p.is_active).length;
 
-        // 3) Hours this month (time_entries)
-        // NOTE: uses created_at OR work_date depending on schema; we use created_at as safest default.
-        // If your table has "work_date" or "date", we can switch.
-        const from = startOfMonthISO();
-        const to = startOfNextMonthISO();
+        // 3) Hours this month (computed from time_in/time_out - lunch_hours)
+        const fromD = startOfMonthDate();
+        const toD = startOfNextMonthDate();
+        const from = isoDateOnly(fromD);
+        const to = isoDateOnly(toD);
 
         const { data: entries, error: teErr } = await supabase
           .from("time_entries")
-          .select("hours, created_at")
+          .select("entry_date, time_in, time_out, lunch_hours")
           .eq("org_id", profile.org_id)
-          .gte("created_at", from)
-          .lt("created_at", to);
+          .gte("entry_date", from)
+          .lt("entry_date", to);
 
         if (teErr) throw teErr;
 
-        const hours_month = (entries ?? []).reduce(
-          (acc: number, r: any) => acc + Number(r.hours || 0),
-          0
-        );
+        const hours_month =
+          (entries ?? []).reduce((acc: number, r: any) => {
+            const tin = parseTimeToMinutes(r.time_in ?? null);
+            const tout = parseTimeToMinutes(r.time_out ?? null);
+            if (tin == null || tout == null) return acc;
 
-        // 4) Pending invites via admin API (Auth)
+            // Handle overnight just in case
+            let minutes = tout - tin;
+            if (minutes < 0) minutes += 24 * 60;
+
+            const lunch = Number(r.lunch_hours ?? 0);
+            const computed = Math.max(0, minutes / 60 - lunch);
+
+            return acc + computed;
+          }, 0) || 0;
+
+        // 4) Pending invites via admin API
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
 
@@ -170,8 +197,8 @@ export default function OrgSnapshot() {
         <Kpi title="Pending invites" value={snap?.pending_invites ?? "—"} sub="Auth invites" />
       </div>
 
-      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-        <KpiWide title="Hours this month" value={snap ? snap.hours_month.toFixed(2) : "—"} sub="Sum of time entries created this month" />
+      <div style={{ marginTop: 12 }}>
+        <KpiWide title="Hours this month" value={snap ? snap.hours_month.toFixed(2) : "—"} sub="Computed from time_in/time_out minus lunch_hours" />
       </div>
     </div>
   );
