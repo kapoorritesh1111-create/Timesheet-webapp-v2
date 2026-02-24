@@ -57,7 +57,7 @@ export default function UserDrawer({
     setActive(!!user.is_active);
   }, [open, user]);
 
-  // Load access when switching to Project access
+  // Load access only when needed
   useEffect(() => {
     if (!open || !user) return;
     if (tab !== "access") return;
@@ -148,7 +148,11 @@ export default function UserDrawer({
 
     setMsg("");
     try {
-      const { data: prof, error: profErr } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
+      const { data: prof, error: profErr } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .maybeSingle();
       if (profErr) throw profErr;
 
       const org_id = (prof as any)?.org_id;
@@ -191,6 +195,7 @@ export default function UserDrawer({
     <div style={overlay}>
       <div style={backdrop} onClick={onClose} />
       <div style={panel}>
+        {/* Top chrome */}
         <div style={panelHeader}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 950, fontSize: 16, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
@@ -204,126 +209,144 @@ export default function UserDrawer({
           </button>
         </div>
 
-        <div style={tabs}>
-          <button className={`pill ${tab === "profile" ? "pillActive" : ""}`} onClick={() => setTab("profile")}>
-            Profile
-          </button>
-          <button className={`pill ${tab === "access" ? "pillActive" : ""}`} onClick={() => setTab("access")}>
-            Project access
-          </button>
-        </div>
-
-        {msg ? (
-          <div style={{ margin: "10px 16px" }} className="muted">
-            {msg}
-          </div>
-        ) : null}
-
-        <div style={content}>
-          {tab === "profile" ? (
-            <div className="card cardPad">
-              <div style={{ fontWeight: 950, marginBottom: 10 }}>User details</div>
-
-              <label className="label">Full name</label>
-              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-
-              <div className="row" style={{ gap: 12, marginTop: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label className="label">Role</label>
-                  <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                    <option value="contractor">Contractor</option>
-                    <option value="manager">Manager</option>
-                  </select>
+        {/* Scroll area */}
+        <div style={scrollArea}>
+          <div className="card cardPad" style={{ marginBottom: 14 }}>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 950 }}>
+                  {tab === "profile" ? "User details" : "Project access"}
                 </div>
-
-                <div style={{ width: 160 }}>
-                  <label className="label">Hourly rate</label>
-                  <input
-                    className="input"
-                    value={String(rate)}
-                    onChange={(e) => setRate(Number(e.target.value))}
-                    inputMode="decimal"
-                  />
+                <div className="muted" style={{ marginTop: 6 }}>
+                  {tab === "profile"
+                    ? "Edit role, manager, rate, and status."
+                    : "Toggle project membership for this user."}
                 </div>
               </div>
 
-              <div style={{ marginTop: 12 }}>
-                <label className="label">Assign manager</label>
-                <select
-                  className="input"
-                  disabled={role !== "contractor"}
-                  value={managerId}
-                  onChange={(e) => setManagerId(e.target.value)}
-                >
-                  <option value="">—</option>
-                  {managers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {(m.full_name || "Manager") + " (" + m.id.slice(0, 6) + "…)"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="row" style={{ justifyContent: "space-between", marginTop: 12 }}>
-                <label className="row" style={{ gap: 8 }}>
-                  <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-                  <span>Active</span>
-                </label>
-
-                <button className="btn" onClick={saveProfile} disabled={saving}>
-                  {saving ? "Saving…" : "Save"}
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                <button className={`pill ${tab === "profile" ? "pillActive" : ""}`} onClick={() => setTab("profile")}>
+                  Profile
+                </button>
+                <button className={`pill ${tab === "access" ? "pillActive" : ""}`} onClick={() => setTab("access")}>
+                  Project access
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="card cardPad">
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                <div>
-                  <div style={{ fontWeight: 950 }}>Project access</div>
-                  <div className="muted" style={{ marginTop: 6 }}>
-                    Toggle project membership for this user
+
+            {msg ? (
+              <div style={{ marginTop: 12 }} className="muted">
+                {msg}
+              </div>
+            ) : null}
+
+            {tab === "profile" ? (
+              <div style={{ marginTop: 14 }}>
+                <label className="label">Full name</label>
+                <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+
+                <div className="row" style={{ gap: 12, marginTop: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="label">Role</label>
+                    <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                      <option value="contractor">Contractor</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                  </div>
+
+                  <div style={{ width: 180 }}>
+                    <label className="label">Hourly rate</label>
+                    <input
+                      className="input"
+                      value={String(rate)}
+                      onChange={(e) => setRate(Number(e.target.value))}
+                      inputMode="decimal"
+                    />
                   </div>
                 </div>
-                <span className="tag tagMuted">{memberIds.size} selected</span>
-              </div>
 
-              {loadingAccess ? (
-                <div className="muted" style={{ marginTop: 12 }}>
-                  Loading…
+                <div style={{ marginTop: 12 }}>
+                  <label className="label">Assign manager</label>
+                  <select
+                    className="input"
+                    disabled={role !== "contractor"}
+                    value={managerId}
+                    onChange={(e) => setManagerId(e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {managers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {(m.full_name || "Manager") + " (" + m.id.slice(0, 6) + "…)"}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ) : (
-                <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                  {projects.map((p) => {
-                    const checked = memberIds.has(p.id);
-                    return (
-                      <label key={p.id} className="pmRow">
-                        <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
-                        <div className="pmMain">
-                          <div className="pmTitle">{p.name || "Untitled project"}</div>
-                          <div className="pmSub">{p.id}</div>
-                        </div>
-                        <div className="pmRight">
-                          <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
-                        </div>
-                      </label>
-                    );
-                  })}
+
+                <div style={{ marginTop: 12 }}>
+                  <label className="row" style={{ gap: 8 }}>
+                    <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+                    <span>Active</span>
+                  </label>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            ) : (
+              <div style={{ marginTop: 14 }}>
+                <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="tag tagMuted">{memberIds.size} selected</span>
+                </div>
+
+                {loadingAccess ? (
+                  <div className="muted" style={{ marginTop: 12 }}>
+                    Loading…
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                    {projects.map((p) => {
+                      const checked = memberIds.has(p.id);
+                      return (
+                        <label key={p.id} className="pmRow">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => toggleProject(p.id, e.target.checked)}
+                          />
+                          <div className="pmMain">
+                            <div className="pmTitle">{p.name || "Untitled project"}</div>
+                            <div className="pmSub">{p.id}</div>
+                          </div>
+                          <div className="pmRight">
+                            <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>
+                              {p.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
+        {/* Fixed footer actions */}
         <div style={footer}>
           <button className="pill" onClick={onClose}>
             Close
           </button>
+
+          {tab === "profile" ? (
+            <button className="btn" onClick={saveProfile} disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
 
+/* Layout: ensure footer is always visible */
 const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -341,7 +364,7 @@ const panel: React.CSSProperties = {
   top: 0,
   right: 0,
   height: "100%",
-  width: "min(520px, 92vw)",
+  width: "min(560px, 92vw)",
   background: "rgba(12,16,24,0.98)",
   borderLeft: "1px solid rgba(255,255,255,0.10)",
   boxShadow: "0 20px 80px rgba(0,0,0,0.55)",
@@ -357,16 +380,10 @@ const panelHeader: React.CSSProperties = {
   justifyContent: "space-between",
 };
 
-const tabs: React.CSSProperties = {
-  padding: "0 16px 12px",
-  display: "flex",
-  gap: 8,
-};
-
-const content: React.CSSProperties = {
-  padding: "0 16px 16px",
-  overflow: "auto",
+const scrollArea: React.CSSProperties = {
   flex: 1,
+  overflow: "auto",
+  padding: "0 16px 0",
 };
 
 const footer: React.CSSProperties = {
@@ -374,4 +391,6 @@ const footer: React.CSSProperties = {
   borderTop: "1px solid rgba(255,255,255,0.08)",
   display: "flex",
   justifyContent: "flex-end",
+  gap: 10,
+  background: "rgba(12,16,24,0.98)",
 };
