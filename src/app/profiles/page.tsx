@@ -228,8 +228,8 @@ function ProfilesInner() {
 
   const subtitle = isAdmin ? "Admin view (org users)" : isManager ? "Manager view (your team)" : "Your profile";
 
-  const selectedIds = useMemo(() => Object.keys(selected).filter((k) => selected[k]), [selected]);
-  const allSelected = useMemo(() => filtered.length > 0 && filtered.every((r) => selected[r.id]), [filtered, selected]);
+  // const selectedIds = useMemo(() => Object.keys(selected).filter((k) => selected[k]), [selected]);
+  // const allSelected = useMemo(() => filtered.length > 0 && filtered.every((r) => selected[r.id]), [filtered, selected]);
 
   function isDirtyRow(r: ProfileRow) {
     const base = baselineRef.current[r.id];
