@@ -1209,3 +1209,52 @@ button:hover { box-shadow: var(--shadow-sm); }
   font-size: 12px;
   font-weight: 800;
 }
+
+/* =========================
+   Step 18: Drawer list rows
+   ========================= */
+
+.pmRow {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+.pmRow:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.16);
+}
+
+.pmRow input[type="checkbox"] {
+  margin-top: 2px; /* aligns to first line */
+}
+
+.pmMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.pmTitle {
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.pmSub {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pmRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 8px;
+}
