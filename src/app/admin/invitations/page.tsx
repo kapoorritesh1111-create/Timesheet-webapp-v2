@@ -1,18 +1,19 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import RequireOnboarding from "../../../components/auth/RequireOnboarding";
 import AppShell from "../../../components/layout/AppShell";
 import AdminTabs from "../../../components/admin/AdminTabs";
-import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabaseBrowser";
 import { useProfile } from "../../../lib/useProfile";
-import { Copy, MoreHorizontal, RefreshCw, Search } from "lucide-react";
 
-type InviteStatus = "pending" | "active";
+type InviteStatus = "all" | "pending" | "active";
+
 type InviteUser = {
   id: string;
-  email: string;
-  status: InviteStatus;
+  email: string | null;
+  status: "pending" | "active";
+  invited_at: string | null;
   created_at: string | null;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
@@ -20,60 +21,53 @@ type InviteUser = {
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 export default function AdminInvitationsPage() {
-  const { profile } = useProfile();
-  const isAdmin = profile?.role === "admin";
-
   return (
     <RequireOnboarding>
-      <AppShell title="Invitations" subtitle="Admin directory (Invitations)">
-        <AdminTabs active="invitations" />
-        {isAdmin ? <Invitations /> : <AdminOnly />}
+      <AppShell>
+        <InvitationsInner />
       </AppShell>
     </RequireOnboarding>
   );
 }
 
-function AdminOnly() {
-  return (
-    <div
-      className="card cardPad"
-      style={{
-        maxWidth: 980,
-        borderColor: "rgba(239,68,68,0.35)",
-        background: "rgba(239,68,68,0.06)",
-      }}
-    >
-      <div style={{ fontWeight: 950 }}>Admin only</div>
-      <div className="muted" style={{ marginTop: 6 }}>
-        You don’t have access to Invitations.
-      </div>
-    </div>
-  );
-}
-
-function Invitations() {
-  const { userId } = useProfile();
+function InvitationsInner() {
+  const { profile } = useProfile();
+  const isAdmin = profile?.role === "admin";
 
   const [rows, setRows] = useState<InviteUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [busyId, setBusyId] = useState<string>("");
-  const [msg, setMsg] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState("");
 
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"all" | InviteStatus>("all");
+  const [status, setStatus] = useState<InviteStatus>("all");
+
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string>("");
+
+  const didLoad = useRef(false);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.closest?.("[data-row-menu]")) return;
+    if (!isAdmin) return;
+    if (didLoad.current) return;
+    didLoad.current = true;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  useEffect(() => {
+    function onDocClick() {
       setOpenMenuId(null);
     }
     document.addEventListener("click", onDocClick);
@@ -83,9 +77,11 @@ function Invitations() {
   async function load() {
     setLoading(true);
     setMsg("");
+
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
+
       if (!token) {
         setMsg("Not logged in.");
         setRows([]);
@@ -96,7 +92,7 @@ function Invitations() {
         headers: { authorization: `Bearer ${token}` },
       });
 
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({} as any));
       if (!res.ok || !json.ok) {
         setMsg(json?.error || `Failed to load (${res.status})`);
         setRows([]);
@@ -112,21 +108,17 @@ function Invitations() {
     }
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (status !== "all" && r.status !== status) return false;
       if (!needle) return true;
-      return (r.email || "").toLowerCase().includes(needle) || r.id.toLowerCase().includes(needle);
+      const hay = `${r.email ?? ""} ${r.id}`.toLowerCase();
+      return hay.includes(needle);
     });
   }, [rows, q, status]);
 
-  const counts = useMemo(() => {
+  const stats = useMemo(() => {
     const total = rows.length;
     const pending = rows.filter((r) => r.status === "pending").length;
     const active = rows.filter((r) => r.status === "active").length;
@@ -136,6 +128,7 @@ function Invitations() {
   async function copyInviteLink(email: string) {
     setBusyId(email);
     setMsg("");
+
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
@@ -150,7 +143,7 @@ function Invitations() {
         body: JSON.stringify({ email }),
       });
 
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({} as any));
       if (!res.ok || !json.ok) {
         setMsg(json?.error || `Failed to generate link (${res.status})`);
         return;
@@ -171,9 +164,11 @@ function Invitations() {
 
     setBusyId(user_id);
     setMsg("");
+
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
+
       if (!token) {
         setMsg("Not logged in.");
         return;
@@ -185,7 +180,7 @@ function Invitations() {
         body: JSON.stringify({ user_id }),
       });
 
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({} as any));
       if (!res.ok || !json.ok) {
         setMsg(json?.error || `Cancel failed (${res.status})`);
         return;
@@ -200,195 +195,201 @@ function Invitations() {
     }
   }
 
+  if (!isAdmin) {
+    return (
+      <div style={{ maxWidth: 980 }}>
+        <h1 style={{ margin: "8px 0 4px" }}>Invitations</h1>
+        <div className="muted">Admins only.</div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ maxWidth: 980 }}>
-      {/* Directory toolbar */}
+    <div style={{ maxWidth: 1100 }}>
+      <div className="row" style={{ alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ margin: "8px 0 4px" }}>Invitations</h1>
+          <div className="muted">Admin directory (Invitations)</div>
+        </div>
+
+        <button className="btn" onClick={load} disabled={loading} title="Refresh">
+          Refresh
+        </button>
+      </div>
+
+      <div style={{ marginTop: 12, marginBottom: 12 }}>
+        <AdminTabs active="invitations" />
+      </div>
+
       <div className="card cardPad" style={{ marginBottom: 12 }}>
-        <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <div className="peopleSearch" style={{ minWidth: 260 }}>
-              <Search size={16} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email or user ID…" />
-            </div>
+        <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            className="input"
+            placeholder="Search email or user ID…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ width: 260 }}
+          />
 
-            <select className="select" value={status} onChange={(e) => setStatus(e.target.value as any)} style={{ width: 160 }}>
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="active">Active</option>
-            </select>
+          <select className="input" value={status} onChange={(e) => setStatus(e.target.value as InviteStatus)} style={{ width: 160 }}>
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="active">Active</option>
+          </select>
 
-            <button className="pill" onClick={() => { setQ(""); setStatus("all"); }}>
-              Clear
-            </button>
-          </div>
+          <button
+            className="btn"
+            onClick={() => {
+              setQ("");
+              setStatus("all");
+            }}
+          >
+            Clear
+          </button>
 
-          <div className="row" style={{ gap: 8, alignItems: "center" }}>
-            <span className="tag tagMuted">Total: {counts.total}</span>
-            <span className="tag tagWarn">Pending: {counts.pending}</span>
-            <span className="tag tagOk">Active: {counts.active}</span>
-            <span className="tag tagMuted">Showing: {counts.showing}</span>
-
-            <button className="iconBtn" onClick={load} title="Refresh" aria-label="Refresh">
-              <RefreshCw size={18} />
-            </button>
+          <div className="row" style={{ marginLeft: "auto", gap: 8, flexWrap: "wrap" }}>
+            <span className="badge">Total: {stats.total}</span>
+            <span className="badge badgeWarn">Pending: {stats.pending}</span>
+            <span className="badge badgeOk">Active: {stats.active}</span>
+            <span className="badge">Showing: {stats.showing}</span>
           </div>
         </div>
 
         {msg ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: 10,
-              borderRadius: 12,
-              border: `1px solid ${msg.includes("✅") ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)"}`,
-              background: msg.includes("✅") ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)",
-              fontSize: 13,
-              whiteSpace: "pre-wrap",
-            }}
-          >
+          <div style={{ marginTop: 10 }} className="muted">
             {msg}
           </div>
         ) : null}
       </div>
 
-      {/* Table */}
       <div className="card" style={{ overflow: "hidden" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 120px",
-            gap: 12,
-            padding: "12px 14px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 12,
-            letterSpacing: 0.4,
-            fontWeight: 900,
-            color: "rgba(255,255,255,0.72)",
-          }}
-        >
-          <div>Email</div>
-          <div>Status</div>
-          <div>Created</div>
-          <div>Last sign-in</div>
-          <div style={{ textAlign: "right" }}>Actions</div>
-        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table className="table" style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th style={{ width: 360 }}>Email</th>
+                <th style={{ width: 110 }}>Status</th>
+                <th style={{ width: 140 }}>Invited</th>
+                <th style={{ width: 140 }}>Created</th>
+                <th style={{ width: 140 }}>Last sign-in</th>
+                <th style={{ width: 90 }} />
+              </tr>
+            </thead>
 
-        {loading ? (
-          <div style={{ padding: 18 }} className="muted">Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: 18 }}>
-            <div style={{ fontWeight: 950 }}>No results</div>
-            <div className="muted" style={{ marginTop: 6 }}>Try changing search or filters.</div>
-          </div>
-        ) : (
-          filtered.map((r) => (
-            <div
-              key={r.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.6fr 0.6fr 0.8fr 0.8fr 120px",
-                gap: 12,
-                padding: "12px 14px",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {r.email || "—"}
-                </div>
-                <div className="muted mono" style={{ fontSize: 11, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {r.id}
-                </div>
-              </div>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 14 }} className="muted">
+                    Loading…
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 14 }} className="muted">
+                    No results.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{r.email || "—"}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {r.id}
+                      </div>
+                    </td>
 
-              <div>
-                <span className={`tag ${r.status === "pending" ? "tagWarn" : "tagOk"}`}>{r.status}</span>
-              </div>
+                    <td>
+                      <span className={r.status === "pending" ? "badge badgeWarn" : "badge badgeOk"}>{r.status}</span>
+                    </td>
 
-              <div>{fmtDate(r.created_at)}</div>
-              <div>{fmtDate(r.last_sign_in_at)}</div>
+                    <td>{fmtDate(r.invited_at)}</td>
+                    <td>{fmtDate(r.created_at)}</td>
+                    <td>{fmtDate(r.last_sign_in_at)}</td>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" }}>
-                {r.status === "pending" ? (
-                  <button className="pill" disabled={busyId === r.email} onClick={() => copyInviteLink(r.email)}>
-                    <Copy size={16} style={{ marginRight: 8 }} />
-                    {busyId === r.email ? "…" : "Copy link"}
-                  </button>
-                ) : null}
-
-                <div data-row-menu style={{ position: "relative" }}>
-                  <button
-                    className="iconBtn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setOpenMenuId((cur) => (cur === r.id ? null : r.id));
-                    }}
-                    aria-label="Row actions"
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
-
-                  {openMenuId === r.id && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: 0,
-                        top: "calc(100% + 8px)",
-                        background: "rgba(12,16,24,0.98)",
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        borderRadius: 12,
-                        minWidth: 200,
-                        overflow: "hidden",
-                        boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-                        zIndex: 20,
-                      }}
-                    >
-                      <button
-                        style={menuBtn}
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(r.email || "");
-                          setMsg("Email copied ✅");
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Copy email
-                      </button>
-
-                      <button
-                        style={menuBtn}
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(r.id);
-                          setMsg("User ID copied ✅");
-                          setOpenMenuId(null);
-                        }}
-                      >
-                        Copy user ID
-                      </button>
-
-                      {r.status === "pending" ? (
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ position: "relative", display: "inline-block" }}>
                         <button
-                          style={{ ...menuBtn, color: "rgba(239,68,68,0.95)" }}
-                          onClick={() => {
-                            setOpenMenuId(null);
-                            cancelInvite(r.id);
+                          className="btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId((prev) => (prev === r.id ? null : r.id));
                           }}
+                          disabled={busyId === r.id}
+                          aria-label="Actions"
                         >
-                          Cancel invitation
+                          •••
                         </button>
-                      ) : (
-                        <div style={{ padding: 10 }} className="muted">
-                          Cancel applies to pending only.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+
+                        {openMenuId === r.id ? (
+                          <div
+                            className="card"
+                            style={{
+                              position: "absolute",
+                              right: 0,
+                              top: 40,
+                              zIndex: 20,
+                              width: 220,
+                              padding: 6,
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              style={menuBtn}
+                              onClick={async () => {
+                                await navigator.clipboard.writeText(r.email || "");
+                                setMsg("Email copied ✅");
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              Copy email
+                            </button>
+
+                            <button
+                              style={menuBtn}
+                              onClick={async () => {
+                                await navigator.clipboard.writeText(r.id);
+                                setMsg("User ID copied ✅");
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              Copy user ID
+                            </button>
+
+                            <button
+                              style={menuBtn}
+                              disabled={!r.email || busyId === r.email}
+                              onClick={async () => {
+                                if (!r.email) return;
+                                await copyInviteLink(r.email);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              {busyId === r.email ? "Working…" : "Copy invite link"}
+                            </button>
+
+                            {r.status === "pending" ? (
+                              <button
+                                style={{ ...menuBtn, color: "rgba(239,68,68,0.95)" }}
+                                disabled={busyId === r.id}
+                                onClick={async () => {
+                                  await cancelInvite(r.id);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                {busyId === r.id ? "Cancelling…" : "Cancel invitation"}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
