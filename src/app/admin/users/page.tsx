@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabaseBrowser";
 import { useProfile } from "../../../lib/useProfile";
 import { Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Role = "admin" | "manager" | "contractor";
 type ManagerLite = { id: string; full_name: string | null };
@@ -52,16 +53,19 @@ function AdminOnly() {
 }
 
 function UsersDirectory() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoUserId = searchParams.get("user");
+
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
   const [q, setQ] = useState("");
   const [role, setRole] = useState<"all" | Role>("all");
-  const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
+  const [status, setStatus] = useState<"all" | "active" | "disabled">("all");
 
   const [selected, setSelected] = useState<UserRow | null>(null);
-
   const [managers, setManagers] = useState<ManagerLite[]>([]);
 
   async function load() {
@@ -99,7 +103,11 @@ function UsersDirectory() {
 
   async function loadManagers() {
     // for dropdown in drawer
-    const { data, error } = await supabase.from("profiles").select("id, full_name, role").eq("role", "manager");
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("role", "manager");
+
     if (!error) {
       setManagers(((data as any) ?? []).map((m: any) => ({ id: m.id, full_name: m.full_name })));
     }
@@ -111,14 +119,30 @@ function UsersDirectory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ Step 19: If /admin/users?user=<id> is present, auto-open that user in drawer
+  useEffect(() => {
+    if (!autoUserId) return;
+    if (loading) return;
+    if (!rows.length) return;
+
+    // if drawer already open on same user, do nothing
+    if (selected?.id === autoUserId) return;
+
+    const found = rows.find((u) => u.id === autoUserId);
+    if (found) setSelected(found);
+  }, [autoUserId, loading, rows, selected?.id]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (role !== "all" && r.role !== role) return false;
+
       if (status !== "all") {
-        if (status === "active" && !r.is_active) return false;
-        if (status === "inactive" && r.is_active) return false;
+        const isActive = !!r.is_active;
+        if (status === "active" && !isActive) return false;
+        if (status === "disabled" && isActive) return false;
       }
+
       if (!needle) return true;
       const hay = `${r.full_name ?? ""} ${r.email ?? ""} ${r.id}`.toLowerCase();
       return hay.includes(needle);
@@ -128,14 +152,41 @@ function UsersDirectory() {
   const stats = useMemo(() => {
     const total = rows.length;
     const active = rows.filter((r) => r.is_active).length;
-    const inactive = total - active;
-    return { total, active, inactive, showing: filtered.length };
+    const disabled = total - active;
+    return { total, active, disabled, showing: filtered.length };
   }, [rows, filtered]);
+
+  function clearFilters() {
+    setQ("");
+    setRole("all");
+    setStatus("all");
+  }
+
+  function openUser(r: UserRow) {
+    // keep URL clean (no param spam) unless you explicitly want shareable links
+    // If you DO want shareable links, switch replace -> push and include `?user=...`
+    router.replace("/admin/users");
+    setSelected(r);
+  }
+
+  function closeDrawer() {
+    setSelected(null);
+    // ✅ clean URL so refresh/back isn't weird
+    router.replace("/admin/users");
+  }
 
   return (
     <div style={{ maxWidth: 1100 }}>
       <div className="card cardPad" style={{ marginBottom: 12 }}>
-        <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          className="row"
+          style={{
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <div className="peopleSearch" style={{ minWidth: 320 }}>
             <Search size={16} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or ID…" />
@@ -152,10 +203,10 @@ function UsersDirectory() {
             <select className="select" value={status} onChange={(e) => setStatus(e.target.value as any)} style={{ width: 160 }}>
               <option value="all">All status</option>
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="disabled">Disabled</option>
             </select>
 
-            <button className="pill" onClick={() => { setQ(""); setRole("all"); setStatus("all"); }}>
+            <button className="pill" onClick={clearFilters}>
               Clear
             </button>
           </div>
@@ -163,7 +214,7 @@ function UsersDirectory() {
           <div className="row" style={{ gap: 8, alignItems: "center" }}>
             <span className="tag tagMuted">Users: {stats.total}</span>
             <span className="tag tagOk">Active: {stats.active}</span>
-            <span className="tag tagWarn">Inactive: {stats.inactive}</span>
+            <span className="tag tagWarn">Disabled: {stats.disabled}</span>
             <span className="tag tagMuted">Showing: {stats.showing}</span>
             <button className="pill" onClick={load} disabled={loading}>
               {loading ? "Loading…" : "Refresh"}
@@ -174,6 +225,12 @@ function UsersDirectory() {
         {msg ? (
           <div style={{ marginTop: 12 }} className="muted">
             {msg}
+          </div>
+        ) : null}
+
+        {autoUserId ? (
+          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+            Tip: opened from invite flow — user drawer will auto-open if the user exists.
           </div>
         ) : null}
       </div>
@@ -200,17 +257,21 @@ function UsersDirectory() {
         </div>
 
         {loading ? (
-          <div style={{ padding: 18 }} className="muted">Loading…</div>
+          <div style={{ padding: 18 }} className="muted">
+            Loading…
+          </div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 18 }}>
             <div style={{ fontWeight: 950 }}>No results</div>
-            <div className="muted" style={{ marginTop: 6 }}>Try changing search or filters.</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              Try changing search or filters.
+            </div>
           </div>
         ) : (
           filtered.map((r) => (
             <button
               key={r.id}
-              onClick={() => setSelected(r)}
+              onClick={() => openUser(r)}
               style={{
                 width: "100%",
                 textAlign: "left",
@@ -233,7 +294,15 @@ function UsersDirectory() {
                   <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
                     {r.full_name || r.email || "—"}
                   </div>
-                  <div className="muted" style={{ fontSize: 12, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div
+                    className="muted"
+                    style={{
+                      fontSize: 12,
+                      marginTop: 4,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
                     {r.email || r.id}
                   </div>
                 </div>
@@ -250,7 +319,7 @@ function UsersDirectory() {
 
                 <div>
                   <span className={`tag ${r.is_active ? "tagOk" : "tagWarn"}`}>
-                    {r.is_active ? "active" : "inactive"}
+                    {r.is_active ? "active" : "disabled"}
                   </span>
                 </div>
 
@@ -263,7 +332,7 @@ function UsersDirectory() {
 
       <UserDrawer
         open={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={closeDrawer}
         user={selected}
         managers={managers}
         onSaved={async () => {
