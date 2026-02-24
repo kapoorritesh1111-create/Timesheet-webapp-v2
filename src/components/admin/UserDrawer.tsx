@@ -57,7 +57,6 @@ export default function UserDrawer({
     setActive(!!user.is_active);
   }, [open, user]);
 
-  // Load project access on-demand
   useEffect(() => {
     if (!open || !user) return;
     if (tab !== "access") return;
@@ -141,7 +140,6 @@ export default function UserDrawer({
 
     setMsg("");
     try {
-      // fetch org_id from user's profile (already protected by RLS)
       const { data: prof } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
       const org_id = (prof as any)?.org_id;
       if (!org_id) throw new Error("Missing org_id");
@@ -149,10 +147,9 @@ export default function UserDrawer({
       if (checked) {
         const { error } = await supabase
           .from("project_members")
-          .upsert(
-            [{ org_id, project_id, user_id: user.id, profile_id: user.id, is_active: true }] as any,
-            { onConflict: "project_id,user_id" }
-          );
+          .upsert([{ org_id, project_id, user_id: user.id, profile_id: user.id, is_active: true }] as any, {
+            onConflict: "project_id,user_id",
+          });
         if (error) throw error;
 
         setMemberIds((prev) => new Set(prev).add(project_id));
@@ -289,13 +286,8 @@ export default function UserDrawer({
                   {projects.map((p) => {
                     const checked = memberIds.has(p.id);
                     return (
-                      <label key={p.id} className="row" style={{ gap: 10, alignItems: "flex-start" }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => toggleProject(p.id, e.target.checked)}
-                          style={{ marginTop: 2 }}
-                        />
+                      <label key={p.id} className="dirCheck">
+                        <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 900 }}>{p.name || "Untitled project"}</div>
                           <div className="muted mono" style={{ fontSize: 11, marginTop: 4 }}>
