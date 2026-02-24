@@ -57,6 +57,7 @@ export default function UserDrawer({
     setActive(!!user.is_active);
   }, [open, user]);
 
+  // Load access when switching to Project access
   useEffect(() => {
     if (!open || !user) return;
     if (tab !== "access") return;
@@ -68,7 +69,14 @@ export default function UserDrawer({
       setMsg("");
 
       try {
-        const { data: prof } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
+        const { data: prof, error: profErr } = await supabase
+          .from("profiles")
+          .select("org_id")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profErr) throw profErr;
+
         const org_id = (prof as any)?.org_id;
         if (!org_id) throw new Error("Missing org_id");
 
@@ -140,7 +148,9 @@ export default function UserDrawer({
 
     setMsg("");
     try {
-      const { data: prof } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
+      const { data: prof, error: profErr } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
+      if (profErr) throw profErr;
+
       const org_id = (prof as any)?.org_id;
       if (!org_id) throw new Error("Missing org_id");
 
@@ -286,15 +296,15 @@ export default function UserDrawer({
                   {projects.map((p) => {
                     const checked = memberIds.has(p.id);
                     return (
-                      <label key={p.id} className="dirCheck">
+                      <label key={p.id} className="pmRow">
                         <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 900 }}>{p.name || "Untitled project"}</div>
-                          <div className="muted mono" style={{ fontSize: 11, marginTop: 4 }}>
-                            {p.id}
-                          </div>
+                        <div className="pmMain">
+                          <div className="pmTitle">{p.name || "Untitled project"}</div>
+                          <div className="pmSub">{p.id}</div>
                         </div>
-                        <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
+                        <div className="pmRight">
+                          <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
+                        </div>
                       </label>
                     );
                   })}
