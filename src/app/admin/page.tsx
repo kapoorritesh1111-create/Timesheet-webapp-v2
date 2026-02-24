@@ -23,6 +23,24 @@ export default function AdminPage() {
   );
 }
 
+function AdminTabs() {
+  return (
+    <div className="card cardPad" style={{ maxWidth: 980, marginBottom: 12 }}>
+      <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+        <a className="pill" href="/admin/users" style={{ textDecoration: "none" }}>
+          Users
+        </a>
+        <a className="pill" href="/admin" style={{ textDecoration: "none" }}>
+          Invite
+        </a>
+      </div>
+      <div className="muted" style={{ marginTop: 8 }}>
+        Users is your Monday-style directory. Invite is where you add new teammates.
+      </div>
+    </div>
+  );
+}
+
 function AdminInner() {
   const { loading: profLoading, userId, profile, error: profErr } = useProfile();
 
@@ -81,7 +99,6 @@ function AdminInner() {
       const list = (((mgrs as any) ?? []) as ManagerRow[]) || [];
       setManagers(list);
 
-      // Default manager pick: first manager (not admin) if present, else first
       const prefer = list.find((m) => m.role === "manager")?.id || list[0]?.id || "";
       setManagerId((prev) => prev || prefer);
     })();
@@ -128,8 +145,6 @@ function AdminInner() {
       }
 
       setMsg("Invite sent ✅");
-
-      // Reset inputs (keep manager selection to speed up invites)
       setEmail("");
       setFullName("");
       setHourlyRate(0);
@@ -177,7 +192,14 @@ function AdminInner() {
   if (!isAdmin) {
     return (
       <AppShell title="Admin" subtitle="Admin-only tools">
-        <div className="card cardPad" style={{ maxWidth: 980, borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.06)" }}>
+        <div
+          className="card cardPad"
+          style={{
+            maxWidth: 980,
+            borderColor: "rgba(239,68,68,0.35)",
+            background: "rgba(239,68,68,0.06)",
+          }}
+        >
           <div style={{ fontWeight: 950 }}>Admin only</div>
           <div className="muted" style={{ marginTop: 6 }}>
             Your role is <b>{profile.role}</b>. Ask an admin for access if needed.
@@ -190,6 +212,8 @@ function AdminInner() {
 
   return (
     <AppShell title="Admin" subtitle="Invite users and maintain org setup">
+      <AdminTabs />
+
       {msg ? (
         <div
           className="card cardPad"
@@ -219,106 +243,65 @@ function AdminInner() {
         <form onSubmit={sendInvite} style={{ marginTop: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr", gap: 12 }}>
             <div>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>Email</div>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                inputMode="email"
-                autoComplete="email"
-              />
-              {!email.trim() ? null : !isValidEmail(email) ? (
-                <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>Enter a valid email.</div>
-              ) : null}
+              <div className="label">Email</div>
+              <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
             </div>
-
             <div>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>Full name</div>
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Jane Contractor"
-                autoComplete="name"
-              />
-              {!fullName.trim() ? <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>Full name is required.</div> : null}
+              <div className="label">Full name</div>
+              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Contractor" />
             </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
             <div>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>Role</div>
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as any)}
-              >
+              <div className="label">Role</div>
+              <select className="select" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
                 <option value="contractor">contractor</option>
                 <option value="manager">manager</option>
               </select>
             </div>
 
-            <div>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>
-                Hourly rate {inviteRole === "manager" ? "(n/a)" : ""}
+            {inviteRole === "contractor" ? (
+              <div>
+                <div className="label">Hourly rate</div>
+                <input
+                  className="input"
+                  type="number"
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(Number(e.target.value))}
+                  min={0}
+                />
               </div>
-              <input
-                value={Number.isNaN(hourlyRate) ? "" : hourlyRate}
-                onChange={(e) => setHourlyRate(Number(e.target.value))}
-                type="number"
-                step="0.01"
-                min="0"
-                disabled={inviteRole === "manager"}
-              />
-              {inviteRole === "manager" ? (
-                <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>Managers don’t use hourly rate for payroll.</div>
-              ) : null}
-            </div>
+            ) : (
+              <div>
+                <div className="label">Hourly rate</div>
+                <input className="input" value="0" disabled />
+              </div>
+            )}
           </div>
 
           {inviteRole === "contractor" ? (
             <div style={{ marginTop: 12 }}>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>Assign manager</div>
-              <select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-                <option value="">Select…</option>
+              <div className="label">Assign manager</div>
+              <select className="select" value={managerId} onChange={(e) => setManagerId(e.target.value)}>
                 {managers.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {(m.full_name || m.id).slice(0, 60)} — {m.role}
+                    {m.full_name ?? m.id} ({m.role})
                   </option>
                 ))}
               </select>
-              <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-                This controls who can approve and view this contractor in People/Approvals/Payroll.
-              </div>
             </div>
           ) : null}
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                setEmail("");
-                setFullName("");
-                setHourlyRate(0);
-                setInviteRole("contractor");
-                setMsg("");
-              }}
-              disabled={busy}
-            >
-              Clear
-            </button>
-
-            <button type="submit" className="btn btnPrimary" disabled={!canSend || busy}>
+          <div style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "center" }}>
+            <button className="btn" type="submit" disabled={!canSend || busy}>
               {busy ? "Sending…" : "Send invite"}
             </button>
+            <div className="muted" style={{ fontSize: 13 }}>
+              Invites are sent via Supabase Auth.
+            </div>
           </div>
         </form>
-      </div>
-
-      <div className="card cardPad" style={{ maxWidth: 980, marginTop: 12 }}>
-        <div style={{ fontWeight: 950 }}>Next improvements (optional)</div>
-        <div className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          Add an “Invite history” section (last 20 invites), and add an “Org settings” panel (name, default week start).
-        </div>
       </div>
     </AppShell>
   );
