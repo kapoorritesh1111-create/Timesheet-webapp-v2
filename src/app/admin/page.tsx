@@ -1,10 +1,10 @@
 // src/app/admin/page.tsx
 "use client";
 
-import AdminTabs from "../../components/admin/AdminTabs";
 import { useEffect, useMemo, useState } from "react";
 import RequireOnboarding from "../../components/auth/RequireOnboarding";
 import AppShell from "../../components/layout/AppShell";
+import AdminTabs from "../../components/admin/AdminTabs";
 import { supabase } from "../../lib/supabaseBrowser";
 import { useProfile } from "../../lib/useProfile";
 
@@ -21,24 +21,6 @@ export default function AdminPage() {
     <RequireOnboarding>
       <AdminInner />
     </RequireOnboarding>
-  );
-}
-
-function AdminTabs() {
-  return (
-    <div className="card cardPad" style={{ maxWidth: 980, marginBottom: 12 }}>
-      <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-        <a className="pill" href="/admin/users" style={{ textDecoration: "none" }}>
-          Users
-        </a>
-        <a className="pill" href="/admin" style={{ textDecoration: "none" }}>
-          Invite
-        </a>
-      </div>
-      <div className="muted" style={{ marginTop: 8 }}>
-        Users is your Monday-style directory. Invite is where you add new teammates.
-      </div>
-    </div>
   );
 }
 
@@ -70,7 +52,6 @@ function AdminInner() {
     return true;
   }, [email, fullName, inviteRole, hourlyRate, managerId]);
 
-  // Load managers list for assignment
   useEffect(() => {
     if (!profile?.org_id) return;
     if (!isAdmin) return;
@@ -184,7 +165,9 @@ function AdminInner() {
       <AppShell title="Admin" subtitle="Admin-only tools">
         <div className="card cardPad" style={{ maxWidth: 980 }}>
           <div style={{ fontWeight: 950 }}>Profile missing</div>
-          <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>{profErr || "No profile found."}</pre>
+          <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
+            {profErr || "No profile found."}
+          </pre>
         </div>
       </AppShell>
     );
@@ -205,16 +188,15 @@ function AdminInner() {
           <div className="muted" style={{ marginTop: 6 }}>
             Your role is <b>{profile.role}</b>. Ask an admin for access if needed.
           </div>
-          {msg ? <div style={{ marginTop: 10, whiteSpace: "pre-wrap", fontSize: 13 }}>{msg}</div> : null}
         </div>
       </AppShell>
     );
   }
 
   return (
-  <AppShell title="Admin" subtitle="Invite users and maintain org setup">
-    <AdminTabs active="invite" />
-    
+    <AppShell title="Admin" subtitle="Invite users and maintain org setup">
+      <AdminTabs active="invite" />
+
       {msg ? (
         <div
           className="card cardPad"
