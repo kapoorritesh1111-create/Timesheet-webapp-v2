@@ -1,345 +1,283 @@
 "use client";
 
-import RequireOnboarding from "../../../components/auth/RequireOnboarding";
-import AppShell from "../../../components/layout/AppShell";
-import AdminTabs from "../../../components/admin/AdminTabs";
-import UserDrawer, { UserRow } from "../../../components/admin/UserDrawer";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../../lib/supabaseBrowser";
-import { useProfile } from "../../../lib/useProfile";
-import { Search } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import RequireOnboarding from "../../components/auth/RequireOnboarding";
+import AppShell from "../../components/layout/AppShell";
+import AdminTabs from "../../components/admin/AdminTabs";
+import OrgSnapshot from "../../components/admin/OrgSnapshot";
+import InviteDrawer from "../../components/admin/InviteDrawer";
+import { supabase } from "../../lib/supabaseBrowser";
+import { useProfile } from "../../lib/useProfile";
+import { UserPlus } from "lucide-react";
 
 type Role = "admin" | "manager" | "contractor";
-type ManagerLite = { id: string; full_name: string | null };
+type ManagerRow = { id: string; full_name: string | null; role: Role };
+type ProjectRow = { id: string; name: string; is_active: boolean };
 
-function fmtDate(iso: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+function isValidEmail(s: string) {
+  const v = s.trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-export default function AdminUsersPage() {
-  const { profile } = useProfile();
-  const isAdmin = profile?.role === "admin";
-
+export default function AdminPage() {
   return (
     <RequireOnboarding>
-      <AppShell title="User management" subtitle="Admin directory (Users)">
-        <AdminTabs active="users" />
-        {isAdmin ? <UsersDirectory /> : <AdminOnly />}
-      </AppShell>
+      <AdminInner />
     </RequireOnboarding>
   );
 }
 
-function AdminOnly() {
-  return (
-    <div
-      className="card cardPad"
-      style={{
-        maxWidth: 980,
-        borderColor: "rgba(239,68,68,0.35)",
-        background: "rgba(239,68,68,0.06)",
-      }}
-    >
-      <div style={{ fontWeight: 950 }}>Admin only</div>
-      <div className="muted" style={{ marginTop: 6 }}>
-        You don’t have access to Users.
-      </div>
-    </div>
-  );
-}
+function AdminInner() {
+  const { loading: profLoading, userId, profile, error: profErr } = useProfile();
+  const isAdmin = profile?.role === "admin";
 
-function UsersDirectory() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const autoUserId = searchParams.get("user");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const [rows, setRows] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [hourlyRate, setHourlyRate] = useState<number>(0);
+  const [inviteRole, setInviteRole] = useState<Exclude<Role, "admin">>("contractor");
 
-  const [q, setQ] = useState("");
-  const [role, setRole] = useState<"all" | Role>("all");
-  const [status, setStatus] = useState<"all" | "active" | "disabled">("all");
+  const [managers, setManagers] = useState<ManagerRow[]>([]);
+  const [managerId, setManagerId] = useState<string>("");
 
-  const [selected, setSelected] = useState<UserRow | null>(null);
-  const [managers, setManagers] = useState<ManagerLite[]>([]);
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [projectQuery, setProjectQuery] = useState("");
+  const [projectIds, setProjectIds] = useState<string[]>([]);
 
-  async function load() {
-    setLoading(true);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string>("");
+
+  const canSend = useMemo(() => {
+    if (!isValidEmail(email)) return false;
+    if (!fullName.trim()) return false;
+
+    if (inviteRole === "contractor") {
+      if (!managerId) return false;
+      if (Number.isNaN(hourlyRate) || hourlyRate < 0) return false;
+    }
+
+    return true;
+  }, [email, fullName, inviteRole, managerId, hourlyRate]);
+
+  useEffect(() => {
+    if (!profile?.org_id || !isAdmin) return;
+
+    // managers
+    supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("org_id", profile.org_id)
+      .in("role", ["admin", "manager"])
+      .eq("is_active", true)
+      .order("role", { ascending: true })
+      .order("full_name", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          setMsg((m) => m || error.message);
+          return;
+        }
+        const list = (((data as any) ?? []) as ManagerRow[]) || [];
+        setManagers(list);
+        const prefer = list.find((m) => m.role === "manager")?.id || list[0]?.id || "";
+        setManagerId((prev) => prev || prefer);
+      });
+
+    // projects
+    supabase
+      .from("projects")
+      .select("id, name, is_active")
+      .eq("org_id", profile.org_id)
+      .order("is_active", { ascending: false })
+      .order("name", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) {
+          setMsg((m) => m || error.message);
+          return;
+        }
+        setProjects(((data as any) ?? []) as ProjectRow[]);
+      });
+  }, [profile?.org_id, isAdmin]);
+
+  function toggleProject(id: string) {
+    setProjectIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function clearProjects() {
+    setProjectIds([]);
+    setProjectQuery("");
+  }
+
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
     setMsg("");
+    setBusy(true);
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) {
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
         setMsg("Not logged in.");
-        setRows([]);
         return;
       }
 
-      const res = await fetch("/api/admin/users", {
-        headers: { authorization: `Bearer ${token}` },
+      const body = {
+        email: email.trim(),
+        full_name: fullName.trim(),
+        hourly_rate: inviteRole === "contractor" ? Number(hourlyRate ?? 0) : 0,
+        role: inviteRole,
+        manager_id: inviteRole === "contractor" ? (managerId || null) : null,
+        project_ids: projectIds,
+      };
+
+      const res = await fetch("/api/admin/invite", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
       });
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) {
-        setMsg(json?.error || `Failed to load (${res.status})`);
-        setRows([]);
+        setMsg(json?.error || `Invite failed (${res.status})`);
         return;
       }
 
-      setRows((json.users ?? []) as UserRow[]);
-    } catch (e: any) {
-      setMsg(e?.message || "Failed to load");
-      setRows([]);
+      setMsg("Invite sent ✅");
+      setEmail("");
+      setFullName("");
+      setHourlyRate(0);
+      setInviteRole("contractor");
+      setProjectIds([]);
+      setProjectQuery("");
+      setDrawerOpen(false);
+    } catch (err: any) {
+      setMsg(err?.message || "Invite failed");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
-  async function loadManagers() {
-    // for dropdown in drawer
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, role")
-      .eq("role", "manager");
-
-    if (!error) {
-      setManagers(((data as any) ?? []).map((m: any) => ({ id: m.id, full_name: m.full_name })));
-    }
+  if (profLoading) {
+    return (
+      <AppShell title="Admin" subtitle="Loading…">
+        <div className="card cardPad" style={{ maxWidth: 980 }}>
+          <div className="skeleton" style={{ height: 16, width: 220 }} />
+          <div className="skeleton" style={{ height: 42, width: "100%", marginTop: 10 }} />
+          <div className="skeleton" style={{ height: 260, width: "100%", marginTop: 10 }} />
+        </div>
+      </AppShell>
+    );
   }
 
-  useEffect(() => {
-    load();
-    loadManagers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ✅ Step 19: If /admin/users?user=<id> is present, auto-open that user in drawer
-  useEffect(() => {
-    if (!autoUserId) return;
-    if (loading) return;
-    if (!rows.length) return;
-
-    // if drawer already open on same user, do nothing
-    if (selected?.id === autoUserId) return;
-
-    const found = rows.find((u) => u.id === autoUserId);
-    if (found) setSelected(found);
-  }, [autoUserId, loading, rows, selected?.id]);
-
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (role !== "all" && r.role !== role) return false;
-
-      if (status !== "all") {
-        const isActive = !!r.is_active;
-        if (status === "active" && !isActive) return false;
-        if (status === "disabled" && isActive) return false;
-      }
-
-      if (!needle) return true;
-      const hay = `${r.full_name ?? ""} ${r.email ?? ""} ${r.id}`.toLowerCase();
-      return hay.includes(needle);
-    });
-  }, [rows, q, role, status]);
-
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const active = rows.filter((r) => r.is_active).length;
-    const disabled = total - active;
-    return { total, active, disabled, showing: filtered.length };
-  }, [rows, filtered]);
-
-  function clearFilters() {
-    setQ("");
-    setRole("all");
-    setStatus("all");
+  if (!userId) {
+    return (
+      <AppShell title="Admin" subtitle="Admin-only tools">
+        <div className="card cardPad" style={{ maxWidth: 980 }}>
+          <div style={{ fontWeight: 950 }}>Please log in.</div>
+        </div>
+      </AppShell>
+    );
   }
 
-  function openUser(r: UserRow) {
-    // keep URL clean (no param spam) unless you explicitly want shareable links
-    // If you DO want shareable links, switch replace -> push and include `?user=...`
-    router.replace("/admin/users");
-    setSelected(r);
+  if (!profile) {
+    return (
+      <AppShell title="Admin" subtitle="Admin-only tools">
+        <div className="card cardPad" style={{ maxWidth: 980 }}>
+          <div style={{ fontWeight: 950 }}>Profile missing</div>
+          <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>{profErr || "No profile found."}</pre>
+        </div>
+      </AppShell>
+    );
   }
 
-  function closeDrawer() {
-    setSelected(null);
-    // ✅ clean URL so refresh/back isn't weird
-    router.replace("/admin/users");
+  if (!isAdmin) {
+    return (
+      <AppShell title="Admin" subtitle="Admin-only tools">
+        <div
+          className="card cardPad"
+          style={{
+            maxWidth: 980,
+            borderColor: "rgba(239,68,68,0.35)",
+            background: "rgba(239,68,68,0.06)",
+          }}
+        >
+          <div style={{ fontWeight: 950 }}>Admin only</div>
+          <div className="muted" style={{ marginTop: 6 }}>
+            Your role is <b>{profile.role}</b>. Ask an admin for access if needed.
+          </div>
+        </div>
+      </AppShell>
+    );
   }
 
   return (
-    <div style={{ maxWidth: 1100 }}>
-      <div className="card cardPad" style={{ marginBottom: 12 }}>
-        <div
-          className="row"
-          style={{
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <div className="peopleSearch" style={{ minWidth: 320 }}>
-            <Search size={16} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or ID…" />
+    <AppShell title="Admin" subtitle="Invite and manage access">
+      <AdminTabs active="invite" />
+
+      {/* ✅ Org snapshot */}
+      <OrgSnapshot />
+
+      {/* Header row */}
+      <div className="card cardPad" style={{ maxWidth: 980, marginBottom: 12 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontWeight: 950, fontSize: 16 }}>Directory actions</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              Invite teammates and assign access in one step.
+            </div>
           </div>
 
-          <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} style={{ width: 160 }}>
-              <option value="all">All roles</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="contractor">Contractor</option>
-            </select>
-
-            <select className="select" value={status} onChange={(e) => setStatus(e.target.value as any)} style={{ width: 160 }}>
-              <option value="all">All status</option>
-              <option value="active">Active</option>
-              <option value="disabled">Disabled</option>
-            </select>
-
-            <button className="pill" onClick={clearFilters}>
-              Clear
-            </button>
-          </div>
-
-          <div className="row" style={{ gap: 8, alignItems: "center" }}>
-            <span className="tag tagMuted">Users: {stats.total}</span>
-            <span className="tag tagOk">Active: {stats.active}</span>
-            <span className="tag tagWarn">Disabled: {stats.disabled}</span>
-            <span className="tag tagMuted">Showing: {stats.showing}</span>
-            <button className="pill" onClick={load} disabled={loading}>
-              {loading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
+          <button className="btn" onClick={() => setDrawerOpen(true)}>
+            <UserPlus size={16} style={{ marginRight: 8 }} />
+            New invite
+          </button>
         </div>
 
         {msg ? (
-          <div style={{ marginTop: 12 }} className="muted">
+          <div
+            style={{
+              marginTop: 12,
+              padding: 10,
+              borderRadius: 12,
+              border: `1px solid ${msg.includes("✅") ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)"}`,
+              background: msg.includes("✅") ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)",
+              fontSize: 13,
+              whiteSpace: "pre-wrap",
+            }}
+          >
             {msg}
           </div>
         ) : null}
-
-        {autoUserId ? (
-          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-            Tip: opened from invite flow — user drawer will auto-open if the user exists.
-          </div>
-        ) : null}
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 0.7fr 0.8fr 0.6fr 0.6fr 0.7fr",
-            gap: 12,
-            padding: "12px 14px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 12,
-            fontWeight: 900,
-            color: "rgba(255,255,255,0.72)",
-          }}
-        >
-          <div>User</div>
-          <div>Role</div>
-          <div>Manager</div>
-          <div>Rate</div>
-          <div>Status</div>
-          <div>Last sign-in</div>
-        </div>
-
-        {loading ? (
-          <div style={{ padding: 18 }} className="muted">
-            Loading…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: 18 }}>
-            <div style={{ fontWeight: 950 }}>No results</div>
-            <div className="muted" style={{ marginTop: 6 }}>
-              Try changing search or filters.
-            </div>
-          </div>
-        ) : (
-          filtered.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => openUser(r)}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.6fr 0.7fr 0.8fr 0.6fr 0.6fr 0.7fr",
-                  gap: 12,
-                  padding: "12px 14px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {r.full_name || r.email || "—"}
-                  </div>
-                  <div
-                    className="muted"
-                    style={{
-                      fontSize: 12,
-                      marginTop: 4,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {r.email || r.id}
-                  </div>
-                </div>
-
-                <div style={{ textTransform: "capitalize" }}>{r.role}</div>
-
-                <div className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {r.role === "contractor"
-                    ? managers.find((m) => m.id === r.manager_id)?.full_name || "—"
-                    : "—"}
-                </div>
-
-                <div>{Number(r.hourly_rate || 0)}</div>
-
-                <div>
-                  <span className={`tag ${r.is_active ? "tagOk" : "tagWarn"}`}>
-                    {r.is_active ? "active" : "disabled"}
-                  </span>
-                </div>
-
-                <div>{fmtDate(r.last_sign_in_at)}</div>
-              </div>
-            </button>
-          ))
-        )}
-      </div>
-
-      <UserDrawer
-        open={!!selected}
-        onClose={closeDrawer}
-        user={selected}
+      {/* ✅ Slide-in drawer */}
+      <InviteDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        email={email}
+        setEmail={setEmail}
+        fullName={fullName}
+        setFullName={setFullName}
+        inviteRole={inviteRole}
+        setInviteRole={setInviteRole}
+        hourlyRate={hourlyRate}
+        setHourlyRate={setHourlyRate}
         managers={managers}
-        onSaved={async () => {
-          await load();
-          await loadManagers();
-        }}
+        managerId={managerId}
+        setManagerId={setManagerId}
+        projects={projects}
+        projectQuery={projectQuery}
+        setProjectQuery={setProjectQuery}
+        projectIds={projectIds}
+        toggleProject={toggleProject}
+        clearProjects={clearProjects}
+        canSend={canSend}
+        busy={busy}
+        onSend={sendInvite}
       />
-    </div>
+    </AppShell>
   );
 }
