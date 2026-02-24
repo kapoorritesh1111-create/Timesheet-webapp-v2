@@ -51,12 +51,9 @@ export default function UserDrawer({
 
   useEffect(() => {
     if (!open || !user) return;
-
-    // reset UI
     setMsg("");
     setSaving(false);
 
-    // profile state
     setFullName(user.full_name || "");
     setRole(user.role);
     setManagerId(user.manager_id || "");
@@ -118,11 +115,7 @@ export default function UserDrawer({
   const filteredProjects = useMemo(() => {
     const q = projQuery.trim().toLowerCase();
     if (!q) return projects;
-
-    return projects.filter((p) => {
-      const name = (p.name || "").toLowerCase();
-      return name.includes(q) || p.id.toLowerCase().includes(q);
-    });
+    return projects.filter((p) => ((p.name || "").toLowerCase().includes(q) || p.id.toLowerCase().includes(q)));
   }, [projects, projQuery]);
 
   async function saveProfile() {
@@ -164,11 +157,7 @@ export default function UserDrawer({
     });
 
     try {
-      const { data: prof, error: profErr } = await supabase
-        .from("profiles")
-        .select("org_id")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: prof, error: profErr } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
       if (profErr) throw profErr;
 
       const org_id = (prof as any)?.org_id;
@@ -204,11 +193,27 @@ export default function UserDrawer({
     }
   }
 
-  function clearSelection() {
-    // remove all memberships shown (bulk clear)
-    // NOTE: we keep this UI-only for now (safe).
-    // If you want real bulk-clear in DB, we’ll add an API route next step.
-    setMsg("Tip: Uncheck projects to remove access.");
+  async function clearAllAccess() {
+    if (!user) return;
+    if (memberIds.size === 0) return;
+
+    setMsg("");
+    try {
+      const { data: prof, error: profErr } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
+      if (profErr) throw profErr;
+
+      const org_id = (prof as any)?.org_id;
+      if (!org_id) throw new Error("Missing org_id");
+
+      const { error } = await supabase.from("project_members").delete().eq("org_id", org_id).eq("user_id", user.id);
+      if (error) throw error;
+
+      setMemberIds(new Set());
+      onSaved();
+      setMsg("Access cleared ✅");
+    } catch (e: any) {
+      setMsg(e?.message || "Failed to clear access");
+    }
   }
 
   if (!open || !user) return null;
@@ -240,15 +245,11 @@ export default function UserDrawer({
 
           {/* Card 1: User details */}
           <div className="card cardPad" style={{ marginBottom: 12 }}>
-            <div style={{ fontWeight: 950 }}>User details</div>
-            <div className="muted" style={{ marginTop: 6 }}>
-              Edit role, manager, rate, and status.
-            </div>
+            <div className="drawerSectionTitle">User details</div>
+            <div className="drawerHelp">Edit role, manager, rate, and status.</div>
 
-            <div style={{ marginTop: 14 }}>
-              <label className="label">Full name</label>
-              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-            </div>
+            <label className="label">Full name</label>
+            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
 
             <div className="row" style={{ gap: 12, marginTop: 12 }}>
               <div style={{ flex: 1 }}>
@@ -261,23 +262,13 @@ export default function UserDrawer({
 
               <div style={{ width: 180 }}>
                 <label className="label">Hourly rate</label>
-                <input
-                  className="input"
-                  value={String(rate)}
-                  onChange={(e) => setRate(Number(e.target.value))}
-                  inputMode="decimal"
-                />
+                <input className="input" value={String(rate)} onChange={(e) => setRate(Number(e.target.value))} inputMode="decimal" />
               </div>
             </div>
 
             <div style={{ marginTop: 12 }}>
               <label className="label">Assign manager</label>
-              <select
-                className="input"
-                disabled={role !== "contractor"}
-                value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
-              >
+              <select className="input" disabled={role !== "contractor"} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
                 <option value="">—</option>
                 {managers.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -287,42 +278,49 @@ export default function UserDrawer({
               </select>
             </div>
 
-            <div style={{ marginTop: 12 }}>
-              <label className="row" style={{ gap: 8 }}>
-                <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-                <span>Active</span>
-              </label>
+            {/* Status: make deactivate obvious */}
+            <div style={{ marginTop: 14 }}>
+              <div className="drawerSectionTitle">Status</div>
+              <div className="statusRow">
+                <div className="statusLeft">
+                  <div className="statusLabel">{active ? "Active" : "Inactive"}</div>
+                  <div className="statusSub">{active ? "User can sign in and log time." : "User is disabled and cannot access the app."}</div>
+                </div>
+
+                <button
+                  type="button"
+                  className={`switch ${active ? "switchOn" : ""}`}
+                  onClick={() => setActive((v) => !v)}
+                  aria-label="Toggle active"
+                >
+                  <span className="switchKnob" />
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Card 2: Project access */}
           <div className="card cardPad">
-            <div style={{ fontWeight: 950 }}>Project access</div>
-            <div className="muted" style={{ marginTop: 6 }}>
-              Select projects to assign immediately
-            </div>
+            <div className="drawerSectionTitle">Project access</div>
+            <div className="drawerHelp">Select projects to assign immediately.</div>
 
-            <div className="row" style={{ gap: 10, marginTop: 12, alignItems: "center" }}>
+            <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <span className="tag tagMuted">{memberIds.size ? `${memberIds.size} selected` : "None"}</span>
-
               <div style={{ flex: 1 }} />
-
-              <button className="pill" onClick={clearSelection} type="button">
-                Clear selection
+              <button className="btnGhost" type="button" onClick={clearAllAccess} disabled={memberIds.size === 0}>
+                Clear access
               </button>
             </div>
 
-            <div style={{ marginTop: 10 }}>
-              <div style={{ position: "relative" }}>
-                <Search size={16} style={{ position: "absolute", left: 12, top: 12, opacity: 0.7 }} />
-                <input
-                  className="input"
-                  style={{ paddingLeft: 36 }}
-                  placeholder="Search projects…"
-                  value={projQuery}
-                  onChange={(e) => setProjQuery(e.target.value)}
-                />
-              </div>
+            <div style={{ marginTop: 10, position: "relative" }}>
+              <Search size={16} style={{ position: "absolute", left: 12, top: 12, opacity: 0.7 }} />
+              <input
+                className="input"
+                style={{ paddingLeft: 36 }}
+                placeholder="Search projects…"
+                value={projQuery}
+                onChange={(e) => setProjQuery(e.target.value)}
+              />
             </div>
 
             {loading ? (
@@ -334,13 +332,13 @@ export default function UserDrawer({
                 {filteredProjects.map((p) => {
                   const checked = memberIds.has(p.id);
                   return (
-                    <label key={p.id} className="pmRow">
+                    <label key={p.id} className="pmRow2">
                       <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
-                      <div className="pmMain">
-                        <div className="pmTitle">{p.name || "Untitled project"}</div>
-                        <div className="pmSub">{p.id}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="pmTitle2">{p.name || "Untitled project"}</div>
+                        <div className="pmMeta2">{p.id}</div>
                       </div>
-                      <div className="pmRight">
+                      <div className="pmBadgeWrap">
                         <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
                       </div>
                     </label>
@@ -359,7 +357,6 @@ export default function UserDrawer({
           <div style={{ height: 16 }} />
         </div>
 
-        {/* Footer: Invite drawer style */}
         <div style={footer}>
           <button className="pill" onClick={onClose}>
             Close
