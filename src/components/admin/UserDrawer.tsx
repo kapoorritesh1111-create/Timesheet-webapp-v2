@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseBrowser";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 type Role = "admin" | "manager" | "contractor";
 
@@ -32,24 +32,31 @@ export default function UserDrawer({
   managers: { id: string; full_name: string | null }[];
   onSaved: () => void;
 }) {
-  const [tab, setTab] = useState<"profile" | "access">("profile");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // Profile form state
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<Role>("contractor");
   const [managerId, setManagerId] = useState<string>("");
   const [rate, setRate] = useState<number>(0);
   const [active, setActive] = useState<boolean>(true);
 
+  // Access state
   const [projects, setProjects] = useState<Project[]>([]);
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
-  const [loadingAccess, setLoadingAccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const [projQuery, setProjQuery] = useState("");
 
   useEffect(() => {
     if (!open || !user) return;
-    setTab("profile");
+
+    // reset UI
     setMsg("");
+    setSaving(false);
+
+    // profile state
     setFullName(user.full_name || "");
     setRole(user.role);
     setManagerId(user.manager_id || "");
@@ -57,15 +64,14 @@ export default function UserDrawer({
     setActive(!!user.is_active);
   }, [open, user]);
 
-  // Load access only when needed
+  // Load projects + membership when drawer opens
   useEffect(() => {
     if (!open || !user) return;
-    if (tab !== "access") return;
 
     let cancelled = false;
 
     (async () => {
-      setLoadingAccess(true);
+      setLoading(true);
       setMsg("");
 
       try {
@@ -80,20 +86,12 @@ export default function UserDrawer({
         const org_id = (prof as any)?.org_id;
         if (!org_id) throw new Error("Missing org_id");
 
-        const { data: projs, error: pErr } = await supabase
-          .from("projects")
-          .select("id, name, is_active")
-          .eq("org_id", org_id)
-          .order("name", { ascending: true });
+        const [{ data: projs, error: pErr }, { data: members, error: mErr }] = await Promise.all([
+          supabase.from("projects").select("id, name, is_active").eq("org_id", org_id).order("name", { ascending: true }),
+          supabase.from("project_members").select("project_id").eq("org_id", org_id).eq("user_id", user.id),
+        ]);
 
         if (pErr) throw pErr;
-
-        const { data: members, error: mErr } = await supabase
-          .from("project_members")
-          .select("project_id")
-          .eq("org_id", org_id)
-          .eq("user_id", user.id);
-
         if (mErr) throw mErr;
 
         if (cancelled) return;
@@ -101,21 +99,31 @@ export default function UserDrawer({
         setProjects((projs as any) ?? []);
         setMemberIds(new Set(((members as any) ?? []).map((r: any) => r.project_id)));
       } catch (e: any) {
-        if (!cancelled) setMsg(e?.message || "Failed to load access");
+        if (!cancelled) setMsg(e?.message || "Failed to load user access");
       } finally {
-        if (!cancelled) setLoadingAccess(false);
+        if (!cancelled) setLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [open, tab, user]);
+  }, [open, user]);
 
   const title = useMemo(() => {
     if (!user) return "";
     return user.full_name || user.email || user.id;
   }, [user]);
+
+  const filteredProjects = useMemo(() => {
+    const q = projQuery.trim().toLowerCase();
+    if (!q) return projects;
+
+    return projects.filter((p) => {
+      const name = (p.name || "").toLowerCase();
+      return name.includes(q) || p.id.toLowerCase().includes(q);
+    });
+  }, [projects, projQuery]);
 
   async function saveProfile() {
     if (!user) return;
@@ -145,8 +153,16 @@ export default function UserDrawer({
 
   async function toggleProject(project_id: string, checked: boolean) {
     if (!user) return;
-
     setMsg("");
+
+    // optimistic UI
+    setMemberIds((prev) => {
+      const n = new Set(prev);
+      if (checked) n.add(project_id);
+      else n.delete(project_id);
+      return n;
+    });
+
     try {
       const { data: prof, error: profErr } = await supabase
         .from("profiles")
@@ -165,8 +181,6 @@ export default function UserDrawer({
             onConflict: "project_id,user_id",
           });
         if (error) throw error;
-
-        setMemberIds((prev) => new Set(prev).add(project_id));
       } else {
         const { error } = await supabase
           .from("project_members")
@@ -175,18 +189,26 @@ export default function UserDrawer({
           .eq("project_id", project_id)
           .eq("user_id", user.id);
         if (error) throw error;
-
-        setMemberIds((prev) => {
-          const n = new Set(prev);
-          n.delete(project_id);
-          return n;
-        });
       }
 
       onSaved();
     } catch (e: any) {
+      // revert on error
+      setMemberIds((prev) => {
+        const n = new Set(prev);
+        if (checked) n.delete(project_id);
+        else n.add(project_id);
+        return n;
+      });
       setMsg(e?.message || "Update access failed");
     }
+  }
+
+  function clearSelection() {
+    // remove all memberships shown (bulk clear)
+    // NOTE: we keep this UI-only for now (safe).
+    // If you want real bulk-clear in DB, we’ll add an API route next step.
+    setMsg("Tip: Uncheck projects to remove access.");
   }
 
   if (!open || !user) return null;
@@ -194,8 +216,8 @@ export default function UserDrawer({
   return (
     <div style={overlay}>
       <div style={backdrop} onClick={onClose} />
+
       <div style={panel}>
-        {/* Top chrome */}
         <div style={panelHeader}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 950, fontSize: 16, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
@@ -209,144 +231,148 @@ export default function UserDrawer({
           </button>
         </div>
 
-        {/* Scroll area */}
         <div style={scrollArea}>
-          <div className="card cardPad" style={{ marginBottom: 14 }}>
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div>
-                <div style={{ fontWeight: 950 }}>
-                  {tab === "profile" ? "User details" : "Project access"}
-                </div>
-                <div className="muted" style={{ marginTop: 6 }}>
-                  {tab === "profile"
-                    ? "Edit role, manager, rate, and status."
-                    : "Toggle project membership for this user."}
-                </div>
+          {msg ? (
+            <div className="card cardPad" style={{ marginBottom: 12 }}>
+              <div className="muted">{msg}</div>
+            </div>
+          ) : null}
+
+          {/* Card 1: User details */}
+          <div className="card cardPad" style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 950 }}>User details</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              Edit role, manager, rate, and status.
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label className="label">Full name</label>
+              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+
+            <div className="row" style={{ gap: 12, marginTop: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label className="label">Role</label>
+                <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                  <option value="contractor">Contractor</option>
+                  <option value="manager">Manager</option>
+                </select>
               </div>
 
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <button className={`pill ${tab === "profile" ? "pillActive" : ""}`} onClick={() => setTab("profile")}>
-                  Profile
-                </button>
-                <button className={`pill ${tab === "access" ? "pillActive" : ""}`} onClick={() => setTab("access")}>
-                  Project access
-                </button>
+              <div style={{ width: 180 }}>
+                <label className="label">Hourly rate</label>
+                <input
+                  className="input"
+                  value={String(rate)}
+                  onChange={(e) => setRate(Number(e.target.value))}
+                  inputMode="decimal"
+                />
               </div>
             </div>
 
-            {msg ? (
-              <div style={{ marginTop: 12 }} className="muted">
-                {msg}
+            <div style={{ marginTop: 12 }}>
+              <label className="label">Assign manager</label>
+              <select
+                className="input"
+                disabled={role !== "contractor"}
+                value={managerId}
+                onChange={(e) => setManagerId(e.target.value)}
+              >
+                <option value="">—</option>
+                {managers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {(m.full_name || "Manager") + " (" + m.id.slice(0, 6) + "…)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label className="row" style={{ gap: 8 }}>
+                <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+                <span>Active</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Card 2: Project access */}
+          <div className="card cardPad">
+            <div style={{ fontWeight: 950 }}>Project access</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              Select projects to assign immediately
+            </div>
+
+            <div className="row" style={{ gap: 10, marginTop: 12, alignItems: "center" }}>
+              <span className="tag tagMuted">{memberIds.size ? `${memberIds.size} selected` : "None"}</span>
+
+              <div style={{ flex: 1 }} />
+
+              <button className="pill" onClick={clearSelection} type="button">
+                Clear selection
+              </button>
+            </div>
+
+            <div style={{ marginTop: 10 }}>
+              <div style={{ position: "relative" }}>
+                <Search size={16} style={{ position: "absolute", left: 12, top: 12, opacity: 0.7 }} />
+                <input
+                  className="input"
+                  style={{ paddingLeft: 36 }}
+                  placeholder="Search projects…"
+                  value={projQuery}
+                  onChange={(e) => setProjQuery(e.target.value)}
+                />
               </div>
-            ) : null}
+            </div>
 
-            {tab === "profile" ? (
-              <div style={{ marginTop: 14 }}>
-                <label className="label">Full name</label>
-                <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-
-                <div className="row" style={{ gap: 12, marginTop: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <label className="label">Role</label>
-                    <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                      <option value="contractor">Contractor</option>
-                      <option value="manager">Manager</option>
-                    </select>
-                  </div>
-
-                  <div style={{ width: 180 }}>
-                    <label className="label">Hourly rate</label>
-                    <input
-                      className="input"
-                      value={String(rate)}
-                      onChange={(e) => setRate(Number(e.target.value))}
-                      inputMode="decimal"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <label className="label">Assign manager</label>
-                  <select
-                    className="input"
-                    disabled={role !== "contractor"}
-                    value={managerId}
-                    onChange={(e) => setManagerId(e.target.value)}
-                  >
-                    <option value="">—</option>
-                    {managers.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {(m.full_name || "Manager") + " (" + m.id.slice(0, 6) + "…)"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <label className="row" style={{ gap: 8 }}>
-                    <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-                    <span>Active</span>
-                  </label>
-                </div>
+            {loading ? (
+              <div className="muted" style={{ marginTop: 12 }}>
+                Loading…
               </div>
             ) : (
-              <div style={{ marginTop: 14 }}>
-                <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="tag tagMuted">{memberIds.size} selected</span>
-                </div>
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                {filteredProjects.map((p) => {
+                  const checked = memberIds.has(p.id);
+                  return (
+                    <label key={p.id} className="pmRow">
+                      <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
+                      <div className="pmMain">
+                        <div className="pmTitle">{p.name || "Untitled project"}</div>
+                        <div className="pmSub">{p.id}</div>
+                      </div>
+                      <div className="pmRight">
+                        <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
+                      </div>
+                    </label>
+                  );
+                })}
 
-                {loadingAccess ? (
-                  <div className="muted" style={{ marginTop: 12 }}>
-                    Loading…
+                {filteredProjects.length === 0 ? (
+                  <div className="muted" style={{ padding: "10px 2px" }}>
+                    No projects match your search.
                   </div>
-                ) : (
-                  <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                    {projects.map((p) => {
-                      const checked = memberIds.has(p.id);
-                      return (
-                        <label key={p.id} className="pmRow">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => toggleProject(p.id, e.target.checked)}
-                          />
-                          <div className="pmMain">
-                            <div className="pmTitle">{p.name || "Untitled project"}</div>
-                            <div className="pmSub">{p.id}</div>
-                          </div>
-                          <div className="pmRight">
-                            <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>
-                              {p.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>
+
+          <div style={{ height: 16 }} />
         </div>
 
-        {/* Fixed footer actions */}
+        {/* Footer: Invite drawer style */}
         <div style={footer}>
           <button className="pill" onClick={onClose}>
             Close
           </button>
-
-          {tab === "profile" ? (
-            <button className="btn" onClick={saveProfile} disabled={saving}>
-              {saving ? "Saving…" : "Save changes"}
-            </button>
-          ) : null}
+          <button className="btn" onClick={saveProfile} disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-/* Layout: ensure footer is always visible */
 const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
