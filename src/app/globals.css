@@ -1106,3 +1106,106 @@ button:hover { box-shadow: var(--shadow-sm); }
 @media (max-width: 900px) {
   .tsGrid2 { grid-template-columns: 1fr; }
 }
+/* =========================
+   Step 17: Directory polish
+   ========================= */
+
+:root {
+  --dir-row-pad-y: 12px;
+  --dir-row-pad-x: 14px;
+  --dir-gap: 12px;
+}
+
+/* Inputs in toolbars feel tighter */
+.peopleSearch input,
+.input,
+.select {
+  height: 40px;
+}
+
+/* Icon buttons (kebab/close/refresh) consistent */
+.iconBtn {
+  height: 38px;
+  width: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.iconBtn:hover {
+  background: rgba(255,255,255,0.07);
+}
+.iconBtn:active {
+  transform: translateY(1px);
+}
+
+/* Pills: active state */
+.pill {
+  height: 38px;
+  border-radius: 999px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+}
+.pill:hover {
+  background: rgba(255,255,255,0.06);
+}
+.pillActive {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.18);
+}
+
+/* Directory rows: consistent density */
+.dirHead {
+  display: grid;
+  gap: var(--dir-gap);
+  padding: 12px var(--dir-row-pad-x);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.72);
+}
+
+.dirRowBtn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.dirRow {
+  display: grid;
+  gap: var(--dir-gap);
+  padding: var(--dir-row-pad-y) var(--dir-row-pad-x);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  align-items: center;
+}
+.dirRowBtn:hover .dirRow {
+  background: rgba(255,255,255,0.03);
+}
+
+/* Checkbox alignment */
+.dirCheck {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.dirCheck input[type="checkbox"] {
+  margin-top: 2px; /* aligns with first line of text */
+}
+
+/* Better chips/badges spacing in toolbars */
+.tag,
+.badge {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
