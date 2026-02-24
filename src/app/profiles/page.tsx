@@ -337,24 +337,20 @@ export default function ProfilesPage() {
 
   return (
     <RequireOnboarding>
-      <AppShell
-        title="People"
-        subtitle={isAdmin ? "Admin view (org users)" : isManager ? "Manager view" : "My profile"}
-        actions={
-          <div className="row" style={{ gap: 8 }}>
-            {isAdmin && (
-              <button
-                className="pill"
-                onClick={() => router.push("/admin")}
-                title="Invite users"
-              >
-                <UserPlus size={16} style={{ marginRight: 8 }} />
-                Invite
-              </button>
-            )}
-          </div>
-        }
-      >
+     <AppShell
+  title="People"
+  subtitle={isAdmin ? "Admin view (org users)" : isManager ? "Manager view" : "My profile"}
+  right={
+    <div className="row" style={{ gap: 8 }}>
+      {isAdmin && (
+        <button className="pill" onClick={() => router.push("/admin")} title="Invite users">
+          <UserPlus size={16} style={{ marginRight: 8 }} />
+          Invite
+        </button>
+      )}
+    </div>
+  }
+  >
         <div className="peopleWrap">
           {/* Toolbar */}
           <div className="peopleToolbar card">
