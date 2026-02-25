@@ -34,7 +34,7 @@ export default function UserDrawer({
   managers: { id: string; full_name: string | null }[];
   onSaved: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"profile" | "access">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "projects">("profile");
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -216,9 +216,9 @@ export default function UserDrawer({
   const tabs = useMemo(
     () => [
       { key: "profile", label: "Profile" },
-      { key: "access", label: "Access", count: memberIds.size },
+      { key: "projects", label: "Projects" },
     ],
-    [memberIds.size]
+    []
   );
 
   if (!open || !user) return null;
@@ -254,7 +254,7 @@ export default function UserDrawer({
           <div className="drawerSectionTitle">User details</div>
           <div className="drawerHelp">Edit role, manager, rate, and status.</div>
 
-          <FormField label="Full name" helpText="Shown across the app and on reports.">
+          <FormField label="Full name" helpText="Shown across the app and on reports." helpMode="tooltip">
             {({ id, describedBy }) => (
               <input id={id} aria-describedby={describedBy} className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
             )}
@@ -262,7 +262,7 @@ export default function UserDrawer({
 
           <div className="row" style={{ gap: 12, marginTop: 12 }}>
             <div style={{ flex: 1 }}>
-              <FormField label="Role" helpText="Managers can see their direct reports.">
+              <FormField label="Role" helpText="Managers can see their direct reports." helpMode="tooltip">
                 {({ id, describedBy }) => (
                   <select id={id} aria-describedby={describedBy} className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
                     <option value="contractor">Contractor</option>
@@ -273,7 +273,7 @@ export default function UserDrawer({
             </div>
 
             <div style={{ width: 180 }}>
-              <FormField label="Hourly rate" helpText="Used for cost calculations.">
+              <FormField label="Hourly rate" helpText="Used for cost calculations." helpMode="tooltip">
                 {({ id, describedBy }) => (
                   <input
                     id={id}
@@ -289,7 +289,11 @@ export default function UserDrawer({
           </div>
 
           <div style={{ marginTop: 12 }}>
-            <FormField label="Assign manager" helpText={role !== "contractor" ? "Only contractors have an assigned manager." : "Controls who can view this contractor."}>
+            <FormField
+              label="Assign manager"
+              helpText={role !== "contractor" ? "Only contractors have an assigned manager." : "Controls who can view this contractor."}
+              helpMode="tooltip"
+            >
               {({ id, describedBy }) => (
                 <select
                   id={id}
@@ -331,13 +335,13 @@ export default function UserDrawer({
         </div>
       ) : null}
 
-      {activeTab === "access" ? (
+      {activeTab === "projects" ? (
         <div className="card cardPad">
           <div className="drawerSectionTitle">Project access</div>
           <div className="drawerHelp">Select projects to assign immediately.</div>
 
           <div className="row" style={{ gap: 10, alignItems: "center" }}>
-            <span className="tag tagMuted">{memberIds.size ? `${memberIds.size} selected` : "None"}</span>
+            <span className="mwTag mwTag-default">{memberIds.size} project{memberIds.size === 1 ? "" : "s"}</span>
             <div style={{ flex: 1 }} />
             <button className="btnGhost" type="button" onClick={clearAllAccess} disabled={memberIds.size === 0}>
               Clear access

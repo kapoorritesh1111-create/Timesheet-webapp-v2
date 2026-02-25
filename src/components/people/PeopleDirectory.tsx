@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseBrowser";
 import { useProfile } from "../../lib/useProfile";
-import { Copy, Filter, MoreHorizontal, Search } from "lucide-react";
+import { Copy, Filter, Search } from "lucide-react";
+import DataTable, { Tag } from "../ui/DataTable";
 
 type Role = "admin" | "manager" | "contractor";
 
@@ -48,7 +48,6 @@ export default function PeopleDirectory({
 }: {
   mode: "people" | "admin";
 }) {
-  const router = useRouter();
   const { profile, userId, loading, refresh } = useProfile();
 
   const isAdmin = profile?.role === "admin";
@@ -60,7 +59,6 @@ export default function PeopleDirectory({
 
   // Selection + menu
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const baselineRef = useRef<Record<string, string>>({});
 
   // Filters
@@ -69,17 +67,7 @@ export default function PeopleDirectory({
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [scope, setScope] = useState<ScopeFilter>("visible");
 
-  // Close menu on click outside
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.closest?.("[data-row-menu]")) return;
-      setOpenMenuId(null);
-    }
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
+  // (Row actions handled by shared DataTable actions menu)
 
   // Load org profiles
   useEffect(() => {
@@ -404,10 +392,10 @@ export default function PeopleDirectory({
 
         <div className="peopleToolbarRight">
           <div className="peopleStatsInline">
-            <span className="tag tagMuted">Users: {counts.total}</span>
-            <span className="tag tagOk">Active: {counts.active}</span>
-            <span className="tag tagWarn">Inactive: {counts.inactive}</span>
-            <span className="tag tagMuted">Showing: {counts.showing}</span>
+            <Tag tone="default">Users: {counts.total}</Tag>
+            <Tag tone="success">Active: {counts.active}</Tag>
+            <Tag tone="warn">Inactive: {counts.inactive}</Tag>
+            <Tag tone="default">Showing: {counts.showing}</Tag>
           </div>
         </div>
       </div>
@@ -416,7 +404,7 @@ export default function PeopleDirectory({
       {anySelected && (
         <div className="peopleBulk card">
           <div className="row" style={{ gap: 10, alignItems: "center" }}>
-            <span className="tag tagMuted">{selectedIds.length} selected</span>
+            <Tag tone="default">{selectedIds.length} selected</Tag>
 
             <button className="pill" onClick={copySelectedIds}>
               <Copy size={16} style={{ marginRight: 8 }} />
@@ -459,82 +447,78 @@ export default function PeopleDirectory({
       {msg && <div className="peopleMsg">{msg}</div>}
 
       {/* Table */}
-      <div className="peopleTable card">
-        <div className="peopleTableHeader">
-          <div className="colCheck">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleAll}
-              aria-label="Select all"
-            />
-          </div>
-          <div className="colName">Name</div>
-          <div className="colRole">Role</div>
-          <div className="colMgr">Manager</div>
-          <div className="colRate">Rate</div>
-          <div className="colStatus">Status</div>
-          <div className="colJoined">Joined</div>
-          <div className="colActions"></div>
-        </div>
+      <DataTable
+        rows={filtered}
+        rowKey={(r) => r.id}
+        loading={false}
+        emptyTitle="No users found"
+        emptySubtitle="Try adjusting search or filters."
+        columns={[
+          {
+            key: "sel",
+            header: (
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all" />
+            ),
+            width: 36,
+            align: "center",
+            cell: (r) => (
+              <input
+                type="checkbox"
+                checked={!!selected[r.id]}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  toggleOne(r.id);
+                }}
+                aria-label={`Select ${r.full_name ?? r.id}`}
+              />
+            ),
+          },
+          {
+            key: "name",
+            header: "Name",
+            cell: (r) => {
+              const dirty = isDirty(r);
+              const canEditSelfName = r.id === userId;
+              const canAdminEdit = isAdmin;
+              const canManagerEditReport = isManager && r.manager_id === userId;
+              const canEditName = canAdminEdit || canEditSelfName || canManagerEditReport;
 
-        {filtered.map((r) => {
-          const dirty = isDirty(r);
-          const canEditSelfName = r.id === userId;
-          const canAdminEdit = isAdmin;
-          const canManagerEditReport = isManager && r.manager_id === userId;
-
-          const canEditName = canAdminEdit || canEditSelfName || canManagerEditReport;
-          const canEditRole = isAdmin;
-          const canEditManager = isAdmin;
-          const canEditRate = isAdmin || canManagerEditReport;
-          const canEditStatus = isAdmin;
-
-          return (
-            <div className="peopleRow" key={r.id}>
-              <div className="colCheck">
-                <input
-                  type="checkbox"
-                  checked={!!selected[r.id]}
-                  onChange={() => toggleOne(r.id)}
-                  aria-label={`Select ${r.full_name ?? r.id}`}
-                />
-              </div>
-
-              {/* Name */}
-              <div className="colName">
-                {canEditName ? (
-                  <>
+              return (
+                <div style={{ display: "grid", gap: 6 }}>
+                  {canEditName ? (
                     <input
-                      className="peopleCellInput"
+                      className="input"
                       value={r.full_name ?? ""}
                       placeholder="Full name"
                       onChange={(e) =>
-                        setRows((prev) =>
-                          prev.map((x) =>
-                            x.id === r.id ? { ...x, full_name: e.target.value } : x
-                          )
-                        )
+                        setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, full_name: e.target.value } : x)))
                       }
                       onBlur={() => {
                         if (!dirty) return;
                         saveRow(r.id, { full_name: r.full_name ?? "" });
                       }}
                     />
-                    <div className="muted mono">{r.id}</div>
-                  </>
-                ) : (
-                  <div className="peopleNameText">
-                    {r.full_name ?? "—"}
-                    <div className="muted mono">{r.id}</div>
+                  ) : (
+                    <div style={{ fontWeight: 850 }}>{r.full_name ?? "—"}</div>
+                  )}
+                  <div className="muted mono" style={{ fontSize: 12 }}>
+                    {r.id}
                   </div>
-                )}
-              </div>
+                </div>
+              );
+            },
+          },
+          {
+            key: "role",
+            header: "Role",
+            width: 140,
+            cell: (r) => {
+              const dirty = isDirty(r);
+              const canEditRole = isAdmin;
 
-              {/* Role */}
-              <div className="colRole">
+              return (
                 <select
-                  className="peopleCellSelect"
+                  className="input"
                   value={r.role}
                   disabled={!canEditRole}
                   title={!canEditRole ? "Admin only" : ""}
@@ -551,20 +535,26 @@ export default function PeopleDirectory({
                   <option value="manager">manager</option>
                   <option value="contractor">contractor</option>
                 </select>
-              </div>
+              );
+            },
+          },
+          {
+            key: "manager",
+            header: "Manager",
+            width: 200,
+            cell: (r) => {
+              const dirty = isDirty(r);
+              const canEditManager = isAdmin;
 
-              {/* Manager */}
-              <div className="colMgr">
+              return (
                 <select
-                  className="peopleCellSelect"
+                  className="input"
                   value={r.manager_id ?? ""}
                   disabled={!canEditManager}
                   title={!canEditManager ? "Admin only" : ""}
                   onChange={(e) => {
                     const manager_id = e.target.value || null;
-                    setRows((prev) =>
-                      prev.map((x) => (x.id === r.id ? { ...x, manager_id } : x))
-                    );
+                    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, manager_id } : x)));
                   }}
                   onBlur={() => {
                     if (!dirty) return;
@@ -578,40 +568,53 @@ export default function PeopleDirectory({
                     </option>
                   ))}
                 </select>
-              </div>
+              );
+            },
+          },
+          {
+            key: "rate",
+            header: "Rate",
+            width: 120,
+            align: "right",
+            cell: (r) => {
+              const dirty = isDirty(r);
+              const canManagerEditReport = isManager && r.manager_id === userId;
+              const canEditRate = isAdmin || canManagerEditReport;
 
-              {/* Rate */}
-              <div className="colRate">
+              return (
                 <input
-                  className="peopleCellInput right"
+                  className="input"
                   type="number"
                   value={r.hourly_rate ?? 0}
                   disabled={!canEditRate}
                   title={!canEditRate ? "Admin only / your direct report" : ""}
                   onChange={(e) => {
                     const hourly_rate = Number(e.target.value);
-                    setRows((prev) =>
-                      prev.map((x) => (x.id === r.id ? { ...x, hourly_rate } : x))
-                    );
+                    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, hourly_rate } : x)));
                   }}
                   onBlur={() => {
                     if (!dirty) return;
                     if (canEditRate) saveRow(r.id, { hourly_rate: r.hourly_rate ?? 0 });
                   }}
                 />
-              </div>
-
-              {/* Status */}
-              <div className="colStatus">
-                {canEditStatus ? (
+              );
+            },
+          },
+          {
+            key: "status",
+            header: "Status",
+            width: 130,
+            cell: (r) => {
+              const dirty = isDirty(r);
+              const canEditStatus = isAdmin;
+              if (canEditStatus) {
+                return (
                   <select
-                    className="peopleCellSelect"
+                    className="input"
                     value={r.is_active ? "active" : "inactive"}
                     onChange={(e) => {
                       const is_active = e.target.value === "active";
-                      setRows((prev) =>
-                        prev.map((x) => (x.id === r.id ? { ...x, is_active } : x))
-                      );
+                      setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, is_active } : x)));
                     }}
                     onBlur={() => {
                       if (!dirty) return;
@@ -621,98 +624,49 @@ export default function PeopleDirectory({
                     <option value="active">active</option>
                     <option value="inactive">inactive</option>
                   </select>
-                ) : (
-                  <span className={`tag ${r.is_active ? "tagOk" : "tagWarn"}`}>
-                    {r.is_active ? "Active" : "Inactive"}
-                  </span>
-                )}
-              </div>
-
-              {/* Joined */}
-              <div className="colJoined">{fmtDate(r.created_at)}</div>
-
-              {/* Actions */}
-              <div className="colActions">
-                <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-                  {dirty ? (
-                    <button
-                      className="pill"
-                      disabled={busyId === r.id}
-                      onClick={() => {
-                        saveRow(r.id, {
-                          full_name: r.full_name ?? "",
-                          role: r.role,
-                          hourly_rate: r.hourly_rate ?? 0,
-                          is_active: r.is_active,
-                          manager_id: r.manager_id,
-                        });
-                      }}
-                    >
-                      {busyId === r.id ? "Saving…" : "Save"}
-                    </button>
-                  ) : (
-                    <span className="muted">Saved</span>
-                  )}
-
-                  <div data-row-menu className="peopleMenuWrap">
-                    <button
-                      className="iconBtn"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setOpenMenuId((cur) => (cur === r.id ? null : r.id));
-                      }}
-                      aria-label="Row actions"
-                    >
-                      <MoreHorizontal size={18} />
-                    </button>
-
-                    {openMenuId === r.id && (
-                      <div className="peopleMenu">
-                        <button
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(r.id);
-                              setMsg("Copied user ID.");
-                            } catch {
-                              setMsg("Could not copy user ID.");
-                            }
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          Copy user ID
-                        </button>
-
-                        {isAdmin && (
-                          <button
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              router.push(`/projects?user=${encodeURIComponent(r.id)}`);
-                            }}
-                          >
-                            Manage project access
-                          </button>
-                        )}
-
-                        {!isAdmin && (
-                          <div className="peopleMenuHint">Admin-only actions hidden</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {filtered.length === 0 && (
-          <div className="peopleEmpty">
-            <div className="title">No users found</div>
-            <div className="muted">Try adjusting search or filters.</div>
-          </div>
-        )}
-      </div>
+                );
+              }
+              return <Tag tone={r.is_active ? "success" : "warn"}>{r.is_active ? "Active" : "Inactive"}</Tag>;
+            },
+          },
+          {
+            key: "joined",
+            header: "Joined",
+            width: 130,
+            cell: (r) => fmtDate(r.created_at),
+          },
+        ]}
+        actions={(r) => {
+          const dirty = isDirty(r);
+          const items: any[] = [];
+          if (dirty) {
+            items.push({
+              label: busyId === r.id ? "Saving…" : "Save",
+              disabled: busyId === r.id,
+              onSelect: async () =>
+                saveRow(r.id, {
+                  full_name: r.full_name ?? "",
+                  role: r.role,
+                  hourly_rate: r.hourly_rate ?? 0,
+                  is_active: r.is_active,
+                  manager_id: r.manager_id,
+                }),
+            });
+          }
+          items.push({
+            label: "Copy user ID",
+            onSelect: async () => {
+              try {
+                await navigator.clipboard.writeText(r.id);
+                setMsg("Copied user ID.");
+              } catch {
+                setMsg("Could not copy user ID.");
+              }
+            },
+          });
+          return items;
+        }}
+      />
     </div>
   );
 }
