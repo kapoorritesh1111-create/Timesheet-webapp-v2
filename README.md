@@ -1,379 +1,236 @@
-# Timesheet v2 — Multi-Tenant SaaS (Baseline v2.0)
+# Timesheet Webapp v2 (Next.js + Supabase)
 
-A multi-tenant Timesheet SaaS built with:
+A Monday.com-inspired timesheet + approvals + payroll webapp built with **Next.js (App Router)** and **Supabase** (Auth + Postgres + RLS).
+Focus: clean enterprise UI shell, role-based access (admin / manager / contractor), and predictable weekly time tracking.
 
-* **Next.js 14 (App Router)**
-* **TypeScript**
-* **Supabase (Auth + Postgres + RLS)**
-* Custom SaaS UI shell inspired by **Monday.com**
+## Status (Current stopping point)
 
-This document reflects the **stable end-of-day baseline** before UI/UX refinements begin.
+**UI/UX**
 
----
+* ✅ Monday-style **AppShell** is live across the app:
 
-# 🎯 Product Vision
+  * fixed sidebar
+  * sticky top header
+  * centered content container
+  * profile dropdown menu
+  * mobile sidebar drawer behavior
+* ✅ **People** directory page has the unified Monday-like toolbar + grid/table layout.
+* ✅ **Projects** page moved to the same UI language as People:
 
-Build a modern SaaS-grade time tracking and approval system with:
+  * toolbar density matched
+  * row hover matched
+  * **selection is now a subtle row highlight + left accent** (no “selected” tag)
+  * actions live behind `...` row menu
+  * admin flows are clean and consistent
+* ✅ **Projects drawer** is implemented (Monday-style right panel).
+* ✅ **Settings → My Profile** is upgraded:
 
-* Clean directory-style admin management
-* Right-side drawers for editing (Monday.com pattern)
-* Role-based access (admin / manager / contractor)
-* Strong RLS + server-side enforcement
-* Scalable multi-tenant org structure
+  * address fields now match People UX patterns
+  * ZIP → auto-populates City/State using a ZIP lookup
+  * country defaults to USA
+  * structured sections: Personal info + contact details, plus “Coming next” placeholder sections
 
----
+**Stability**
 
-# 🟢 Current Deployment Status
+* ✅ Builds are green and deployable.
+* ✅ Accessibility warnings reduced:
 
-**Deployment:** Stable
-**Baseline locked:** Yes
-**Step 19/20:** Reverted (not applied)
-**Regression state:** Clean and working
-
----
-
-# 🏗 Architecture Overview
-
-## Frontend
-
-* App Router structure
-* Sidebar navigation (Home, My Work, Approvals, Projects, People, Payroll)
-* Header with profile dropdown
-* Drawer-based editing system
-
-UI style direction:
-
-* Dark SaaS theme
-* Token-based styling
-* Compact spacing
-* Tag-style status indicators
+  * inputs/selects now have `id/name` patterns and label alignment improvements (where applicable)
+* ✅ Projects drawer tab typing/build issues fixed.
 
 ---
 
-## Backend (Supabase)
+## Tech stack
 
-### Auth
+* **Next.js 14** (App Router)
+* **React + TypeScript**
+* **Supabase**:
 
-* Supabase Auth
-* Email invite flow
-* `/auth/callback` redirect
-* Onboarding flow enforced
-
-### Database
-
-Core tables include:
-
-* `orgs`
-* `profiles`
-* `projects`
-* `project_members`
-* `time_entries`
-
-### Security Model (Defense-in-Depth)
-
-1. UI role gating
-2. Admin API validation (checks real session token)
-3. Supabase RLS
-4. Trigger guards (e.g., `guard_profiles_update`)
+  * Auth (invites / login)
+  * Postgres tables + Row Level Security (RLS)
+* CSS: `src/app/globals.css` (token-driven, Monday-style system)
 
 ---
 
-# 👥 Role Model
+## Environment variables
 
-## Admin
+Create `.env.local`:
 
-* Invite users
-* Assign managers
-* Assign project access
-* Edit user roles
-* Activate / deactivate users
-* View org snapshot
-
-## Manager
-
-* View assigned contractors
-* Approve time entries
-* Update contractor profiles (per rules)
-
-## Contractor
-
-* Submit time entries
-* Update limited profile fields
-
----
-
-# 📂 Core Routes (Working)
-
-## Admin
-
-### `/admin`
-
-* Org snapshot
-* User counts
-* Project counts
-* Hours this month
-* Directory actions
-* “New invite” drawer
-
-### `/admin/invite`
-
-* Invite flow via drawer
-* Create user (service role)
-* Create profile
-* Assign manager
-* Assign project access
-
-### `/admin/users`
-
-* Directory table
-* Search
-* Role filter
-* Status filter (active/disabled)
-* Row click opens drawer
-* Drawer sections:
-
-  * User details
-  * Project access
-* Save changes
-* Activate / deactivate user
-
-### `/admin/invitations`
-
-* Pending invites list
-* Status display
-
----
-
-## People
-
-### `/profiles`
-
-* Directory of profiles
-* Basic editing functionality
-* Manager relationships visible
-
----
-
-## Projects
-
-### `/projects`
-
-* Project list
-* Status indicators
-* Project membership relationships working
-
----
-
-## Timesheet
-
-### `/timesheet`
-
-* Time entry creation
-* Entry persistence
-* Role-based access enforced
-
----
-
-## Approvals
-
-### `/approvals`
-
-* Manager/admin approval flow
-* State-based transitions
-
----
-
-## Payroll
-
-### `/payroll`
-
-* Payroll overview
-
-### `/reports/payroll`
-
-* Payroll reporting route
-
----
-
-# 🔐 Admin API Endpoints (Server-Side)
-
-Located under:
-
-```
-/src/app/api/admin/*
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key   # server-side only
 ```
 
-Key endpoints:
+Notes:
 
-* `POST /api/admin/invite`
-* `GET /api/admin/users`
-* `GET /api/admin/invitations`
-
-Pattern:
-
-1. Validate caller token
-2. Confirm role = admin
-3. Use `SUPABASE_SERVICE_ROLE_KEY`
-4. Perform privileged operations
+* Browser client uses **anon key only** (`src/lib/supabaseBrowser.ts`).
+* Server routes use service role key (`src/lib/supabaseServer.ts`).
 
 ---
 
-# 🧠 What Is Stable Right Now
+## Run locally
 
-✔ Login & onboarding
-✔ Invite user
-✔ Create profile row
-✔ Assign manager
-✔ Assign project membership
-✔ Edit user role
-✔ Activate / deactivate user
-✔ Users drawer UI functional
-✔ Org snapshot dashboard
-✔ Project membership persistence
-✔ RLS enforcement functioning
+```bash
+npm install
+npm run dev
+```
 
----
+Build:
 
-# ⚠ Known Technical Realities
-
-* Step 19 introduced route coupling issues (reverted)
-* Some pages still have inconsistent spacing
-* People page UX not yet SaaS-level
-* Invitations page needs visual redesign
-* Drawer component not yet centralized (duplicated structure)
-* Table layouts vary across pages
-* No shared DataTable abstraction yet
-* No shared Drawer abstraction yet
+```bash
+npm run build
+npm start
+```
 
 ---
 
-# 🎨 UX Maturity Assessment (Honest)
+## App routes (current)
 
-### Current Level: Early SaaS Beta
-
-Strengths:
-
-* Solid architecture
-* Real RLS enforcement
-* Real multi-role logic
-* Drawer interaction pattern present
-* Clean navigation shell
-
-Weaknesses:
-
-* Inconsistent table spacing
-* Some filters misaligned
-* Visual hierarchy not unified
-* No system-level component library
-* Some density mismatches vs Monday.com
+* `/dashboard` — summary + quick links
+* `/timesheet` — weekly time entry
+* `/approvals` — approvals (manager/admin)
+* `/reports/payroll` — payroll reporting
+* `/profiles` — People directory (org users)
+* `/projects` — Projects list + drawer detail (admin full control; managers read-only)
+* `/admin` — admin hub (invite + org snapshot)
+* `/settings/profile` — My Profile (Monday-style profile shell + address)
 
 ---
 
-# 🚀 Next Phase Roadmap (Starting Tomorrow)
+## Role behavior (current)
 
-## Phase 1 — UI System Foundation (No DB Changes)
+### Admin
 
-1. Build shared `Drawer` component
+* Full access to everything.
+* Can create/edit/deactivate projects.
+* Can manage project membership & org directory actions.
 
-   * Header
-   * Tabs
-   * Scrollable body
-   * Sticky footer with buttons
+### Manager
 
-2. Build shared `DataTable` component
+* Sees projects list and can inspect details.
+* Does **not** get admin controls for create/deactivate/membership changes.
+* Approvals page expected to show manager scope.
 
-   * Column definition
-   * Row click
-   * Empty state
-   * Loading state
-   * Tag rendering
-   * Actions dropdown
+### Contractor
 
-3. Build shared `FormField` component
-
-   * Label
-   * Help text
-   * Error display
-   * Consistent spacing
+* Focused on timesheet entry + viewing their own data (RLS dependent).
 
 ---
 
-## Phase 2 — Page Refinement
+## Key features working now
 
-Order:
+### 1) Monday-style AppShell
 
-1. Admin Invitations (weakest visually)
-2. Admin Users (alignment + density polish)
-3. People page redesign to match Admin Users pattern
-4. Approvals polish
-5. Timesheet week UI improvements
+File: `src/components/layout/AppShell.tsx`
 
----
+* sidebar + header unified for all pages
+* profile dropdown
+* mobile responsive patterns
 
-## Phase 3 — SaaS Polish
+### 2) People directory UI
 
-* Status chips standardized
-* Confirmation modals
-* Toast notifications
-* Optimistic UI updates
-* Skeleton loading states
-* Error boundaries
+File: `src/app/profiles/page.tsx` (and related client)
 
----
+* filter/search toolbar
+* density matched to Monday feel
+* consistent row actions and quick scanning
 
-# 🧪 Regression Checklist (Before Every Deploy)
+### 3) Projects page polish + drawer
 
-Auth:
+Files:
 
-* Login works
-* Onboarding works
-* Logout works
+* `src/app/projects/page.tsx`
+* `src/app/projects/projects-client.tsx`
+* Drawer panel foundation in CSS: `globals.css`
 
-Admin:
+Highlights:
 
-* Invite works
-* Profile row created
-* Drawer saves properly
-* Project membership updates
-* Disable user works
+* toolbar + table now visually aligned with People
+* selected row is subtle highlight + left accent bar
+* actions behind `...`
+* drawer opens with details for selected project
 
-Timesheet:
+### 4) Settings → My Profile improvements
 
-* Entry creation works
-* Approval works
+File: `src/app/settings/profile/page.tsx`
 
----
+Address behavior (current):
 
-# 🏁 Baseline Locked
+* Address 1 / Address 2
+* ZIP
+* City + State auto-filled from ZIP lookup (network call)
+* Country default: USA
 
-This README represents the stable state at the end of today.
+Also includes Monday-style profile navigation with “Coming next” sections:
 
-All new work from tomorrow forward should:
-
-* Be incremental
-* Avoid deleting working glue logic
-* Avoid multi-file refactors in one step
-* Follow Monday.com visual patterns gradually
+* Working status
+* Notifications
+* Language & region
+* Password
+* Session history
 
 ---
 
-# 🧭 Design Reference
+## Known gaps / constraints (as of now)
 
-Primary inspiration:
-
-* Monday.com Admin + Directory UX
-* Right-side drawer editing
-* Clean table grids
-* Clear visual hierarchy
-* Compact but readable density
+* Some “Coming next” profile sections are placeholder-only for now.
+* Console may still show minor autofill/label warnings on specific inputs depending on browser.
+* We are still refining typography (font weights feel a bit harsh in places) — next polish item is global typography softening in `globals.css`.
+* Manager/contractor experiences need a dedicated pass after admin UX is locked.
 
 ---
 
-If you want, tomorrow we can:
+## What we will do tomorrow (next steps)
 
-* Start with a **UI system blueprint**
-* Or rebuild **Admin Invitations page first**
-* Or create a visual style token cleanup plan
+### Priority A — Typography polish (global)
 
-You made the correct move freezing today’s repo.
-Tomorrow we move forward cleanly and intentionally.
+Goal: make UI feel less harsh / more “Monday”:
+
+* soften headings/body weights globally
+* adjust font-smoothing
+* normalize label weights (reduce 900/950 usage in non-headline contexts)
+* ensure table headers and tags don’t feel “shouty”
+
+Target file:
+
+* `src/app/globals.css`
+
+### Priority B — Settings “My Profile” completion
+
+Build the real Monday-style profile experience:
+
+* Working status (active/away/custom)
+* Notifications preferences (email/in-app toggles)
+* Language & region (timezone, locale)
+* Password (reset flow entry)
+* Session history (basic list; can be mocked if needed)
+
+### Priority C — Projects drawer UX final pass
+
+* Ensure drawer content mirrors People drawer interaction patterns exactly:
+
+  * consistent tabs layout
+  * consistent footer actions
+  * consistent spacing and density
+* Confirm mobile drawer behavior is clean and predictable.
+
+### Priority D — QA pass (admin flows)
+
+* Validate:
+
+  * create project
+  * deactivate project
+  * assign members
+  * People edits
+  * profile address save + ZIP lookup behavior
+
+---
+
+## Dev notes / reminders
+
+* If you see Vercel builds “auto-modifying tsconfig”, it’s normal — but we should keep tsconfig stable in repo to avoid churn.
+* Address ZIP lookup relies on external API; if we want zero dependencies later, we can replace with:
+
+  * a lightweight ZIP table in Supabase
+  * or a paid/enterprise geo provider
