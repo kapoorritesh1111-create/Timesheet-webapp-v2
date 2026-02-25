@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { Search, X } from "lucide-react";
+import { useId, useMemo } from "react";
+import { Search } from "lucide-react";
+import Drawer from "../ui/Drawer";
 
 type Role = "admin" | "manager" | "contractor";
 type ManagerRow = { id: string; full_name: string | null; role: Role };
@@ -51,63 +52,31 @@ export default function InviteDrawer(props: {
 
   const selectedCount = props.projectIds.length;
 
+  const formId = useId();
+
   if (!props.open) return null;
 
   return (
-    <>
-      {/* Overlay */}
-      <div
-        onClick={props.onClose}
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.45)",
-          zIndex: 50,
-        }}
-      />
-
-      {/* Drawer */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          height: "100vh",
-          width: "min(560px, 92vw)",
-          zIndex: 51,
-          background: "rgba(12,16,24,0.98)",
-          borderLeft: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 20px 80px rgba(0,0,0,0.55)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: 16,
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 950, fontSize: 16 }}>New invite</div>
-            <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
-              Add teammate + assign access
-            </div>
-          </div>
-          <button className="iconBtn" onClick={props.onClose} aria-label="Close">
-            <X size={18} />
+    <Drawer
+      open={props.open}
+      onClose={props.onClose}
+      title="New invite"
+      subtitle="Add teammate + assign access"
+      footer={
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button className="pill" onClick={props.onClose} type="button">
+            Cancel
+          </button>
+          <button className="btn" type="submit" form={formId} disabled={!props.canSend || props.busy}>
+            {props.busy ? "Sending…" : "Send invite"}
           </button>
         </div>
+      }
+    >
 
-        {/* Content */}
-        <form
+<form id={formId}
           onSubmit={props.onSend}
-          style={{ padding: 16, overflow: "auto", flex: 1 }}
+          style={{ padding: 0 }}
         >
           {/* User section */}
           <div className="card" style={{ padding: 14 }}>
@@ -271,25 +240,6 @@ export default function InviteDrawer(props: {
 
           <div style={{ height: 14 }} />
         </form>
-
-        {/* Footer */}
-        <div
-          style={{
-            padding: 16,
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-            display: "flex",
-            gap: 10,
-            justifyContent: "flex-end",
-          }}
-        >
-          <button className="pill" onClick={props.onClose} type="button">
-            Cancel
-          </button>
-          <button className="btn" disabled={!props.canSend || props.busy} onClick={props.onSend as any}>
-            {props.busy ? "Sending…" : "Send invite"}
-          </button>
-        </div>
-      </div>
-    </>
+    </Drawer>
   );
 }

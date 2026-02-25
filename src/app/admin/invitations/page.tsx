@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import RequireOnboarding from "../../../components/auth/RequireOnboarding";
 import AppShell from "../../../components/layout/AppShell";
 import AdminTabs from "../../../components/admin/AdminTabs";
+import DataTable, { Tag, ActionItem } from "../../../components/ui/DataTable";
 import { supabase } from "../../../lib/supabaseBrowser";
 import { useProfile } from "../../../lib/useProfile";
 
@@ -53,7 +54,6 @@ function InvitationsInner() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<InviteStatus>("all");
 
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string>("");
 
   const didLoad = useRef(false);
@@ -65,14 +65,6 @@ function InvitationsInner() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
-
-  useEffect(() => {
-    function onDocClick() {
-      setOpenMenuId(null);
-    }
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
 
   async function load() {
     setLoading(true);
@@ -264,143 +256,78 @@ function InvitationsInner() {
 
       <div className="card" style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table className="table" style={{ width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={{ width: 360 }}>Email</th>
-                <th style={{ width: 110 }}>Status</th>
-                <th style={{ width: 140 }}>Invited</th>
-                <th style={{ width: 140 }}>Created</th>
-                <th style={{ width: 140 }}>Last sign-in</th>
-                <th style={{ width: 90 }} />
-              </tr>
-            </thead>
-
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 14 }} className="muted">
-                    Loading…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 14 }} className="muted">
-                    No results.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{r.email || "—"}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {r.id}
-                      </div>
-                    </td>
-
-                    <td>
-                      <span className={r.status === "pending" ? "badge badgeWarn" : "badge badgeOk"}>{r.status}</span>
-                    </td>
-
-                    <td>{fmtDate(r.invited_at)}</td>
-                    <td>{fmtDate(r.created_at)}</td>
-                    <td>{fmtDate(r.last_sign_in_at)}</td>
-
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ position: "relative", display: "inline-block" }}>
-                        <button
-                          className="btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId((prev) => (prev === r.id ? null : r.id));
-                          }}
-                          disabled={busyId === r.id}
-                          aria-label="Actions"
-                        >
-                          •••
-                        </button>
-
-                        {openMenuId === r.id ? (
-                          <div
-                            className="card"
-                            style={{
-                              position: "absolute",
-                              right: 0,
-                              top: 40,
-                              zIndex: 20,
-                              width: 220,
-                              padding: 6,
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              style={menuBtn}
-                              onClick={async () => {
-                                await navigator.clipboard.writeText(r.email || "");
-                                setMsg("Email copied ✅");
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              Copy email
-                            </button>
-
-                            <button
-                              style={menuBtn}
-                              onClick={async () => {
-                                await navigator.clipboard.writeText(r.id);
-                                setMsg("User ID copied ✅");
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              Copy user ID
-                            </button>
-
-                            <button
-                              style={menuBtn}
-                              disabled={!r.email || busyId === r.email}
-                              onClick={async () => {
-                                if (!r.email) return;
-                                await copyInviteLink(r.email);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              {busyId === r.email ? "Working…" : "Copy invite link"}
-                            </button>
-
-                            {r.status === "pending" ? (
-                              <button
-                                style={{ ...menuBtn, color: "rgba(239,68,68,0.95)" }}
-                                disabled={busyId === r.id}
-                                onClick={async () => {
-                                  await cancelInvite(r.id);
-                                  setOpenMenuId(null);
-                                }}
-                              >
-                                {busyId === r.id ? "Cancelling…" : "Cancel invitation"}
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <DataTable
+            loading={loading}
+            rows={filtered}
+            rowKey={(r) => r.id}
+            columns={[
+              {
+                key: "email",
+                header: "Email",
+                width: 360,
+                cell: (r) => (
+                  <div>
+                    <div style={{ fontWeight: 800 }}>{r.email || "—"}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {r.id}
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "status",
+                header: "Status",
+                width: 120,
+                cell: (r) => (
+                  <Tag tone={r.status === "pending" ? "warn" : "success"}>{r.status}</Tag>
+                ),
+              },
+              { key: "invited", header: "Invited", width: 140, cell: (r) => fmtDate(r.invited_at) },
+              { key: "created", header: "Created", width: 140, cell: (r) => fmtDate(r.created_at) },
+              { key: "last", header: "Last sign-in", width: 140, cell: (r) => fmtDate(r.last_sign_in_at) },
+            ]}
+            emptyTitle="No invitations"
+            emptySubtitle="Try adjusting your search or status filter."
+            actions={(r): ActionItem<InviteUser>[] => [
+              {
+                label: "Copy email",
+                disabled: !r.email,
+                onSelect: async () => {
+                  await navigator.clipboard.writeText(r.email || "");
+                  setMsg("Email copied ✅");
+                },
+              },
+              {
+                label: "Copy user ID",
+                onSelect: async () => {
+                  await navigator.clipboard.writeText(r.id);
+                  setMsg("User ID copied ✅");
+                },
+              },
+              {
+                label: busyId === (r.email || "") ? "Working…" : "Copy invite link",
+                disabled: !r.email || busyId === (r.email || ""),
+                onSelect: async () => {
+                  if (!r.email) return;
+                  await copyInviteLink(r.email);
+                },
+              },
+              ...(r.status === "pending"
+                ? [
+                    {
+                      label: busyId === r.id ? "Cancelling…" : "Cancel invitation",
+                      danger: true,
+                      disabled: busyId === r.id,
+                      onSelect: async () => {
+                        await cancelInvite(r.id);
+                      },
+                    } as ActionItem<InviteUser>,
+                  ]
+                : []),
+            ]}
+          />
         </div>
       </div>
     </div>
   );
 }
-
-const menuBtn: React.CSSProperties = {
-  width: "100%",
-  textAlign: "left",
-  padding: "10px 12px",
-  background: "transparent",
-  border: "none",
-  cursor: "pointer",
-  fontSize: 13,
-};

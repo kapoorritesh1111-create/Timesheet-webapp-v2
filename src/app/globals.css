@@ -1384,3 +1384,301 @@ button:hover { box-shadow: var(--shadow-sm); }
   border-radius: 999px;
   padding: 8px 10px;
 }
+
+
+/* =========================
+   UI FOUNDATION — PANEL DRAWER
+   ========================= */
+
+.mwPanelOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.45);
+  z-index: 95;
+}
+
+.mwPanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  z-index: 96;
+  background: rgba(255,255,255,0.98);
+  border-left: 1px solid rgba(15,23,42,0.12);
+  box-shadow: -20px 0 80px rgba(15,23,42,0.24);
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-theme="dark"] .mwPanel {
+  background: rgba(12,16,24,0.98);
+  border-left: 1px solid rgba(255,255,255,0.10);
+  box-shadow: -20px 0 80px rgba(0,0,0,0.55);
+}
+
+.mwPanelHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+html[data-theme="dark"] .mwPanelHeader {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mwPanelTitle {
+  font-weight: 950;
+  font-size: 16px;
+}
+
+.mwPanelSubtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mwDrawerTabs {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+html[data-theme="dark"] .mwDrawerTabs {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mwDrawerTab {
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.02);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+html[data-theme="dark"] .mwDrawerTab {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+}
+
+.mwDrawerTabActive {
+  background: var(--primary-soft);
+  border-color: var(--primary-ring);
+}
+
+.mwDrawerTabCount {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.mwPanelBody {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+.mwPanelFooter {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  background: inherit;
+}
+
+html[data-theme="dark"] .mwPanelFooter {
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* =========================
+   UI FOUNDATION — DATA TABLE
+   ========================= */
+
+.mwTableWrap {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-theme="dark"] .mwTableWrap {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.mwTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.mwTable thead th {
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: .01em;
+  font-weight: 900;
+  padding: 12px 12px;
+  background: rgba(0,0,0,0.02);
+  border-bottom: 1px solid var(--border);
+  color: rgba(15,23,42,0.75);
+}
+
+html[data-theme="dark"] .mwTable thead th {
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.75);
+}
+
+.mwTable tbody td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+html[data-theme="dark"] .mwTable tbody td {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.mwTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.mwRowClickable {
+  cursor: pointer;
+}
+
+.mwRowClickable:hover td {
+  background: rgba(37,99,235,0.06);
+}
+
+html[data-theme="dark"] .mwRowClickable:hover td {
+  background: rgba(37,99,235,0.12);
+}
+
+.mwTableCompact thead th,
+.mwTableCompact tbody td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.mwAlign-center { text-align: center; }
+.mwAlign-right { text-align: right; }
+
+.mwEmpty {
+  padding: 22px;
+  text-align: center;
+}
+
+.mwEmptyTitle {
+  font-weight: 950;
+}
+
+.mwEmptySubtitle {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mwLoadingRow td { padding-top: 10px; padding-bottom: 10px; }
+
+.mwSkeleton {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(15,23,42,0.08);
+  animation: mwPulse 1.2s ease-in-out infinite;
+}
+
+html[data-theme="dark"] .mwSkeleton {
+  background: rgba(255,255,255,0.10);
+}
+
+@keyframes mwPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.mwTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.02);
+  white-space: nowrap;
+}
+
+html[data-theme="dark"] .mwTag {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+}
+
+.mwTag-success { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.22); }
+.mwTag-warn { background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.22); }
+.mwTag-danger { background: rgba(220,38,38,0.12); border-color: rgba(220,38,38,0.22); }
+
+.mwActionsWrap { position: relative; display: inline-flex; justify-content: flex-end; }
+.mwMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 180px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  z-index: 40;
+}
+
+html[data-theme="dark"] .mwMenu {
+  background: rgba(12,16,24,0.98);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.mwMenuItem {
+  width: 100%;
+  text-align: left;
+  padding: 10px 10px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.mwMenuItem:hover { background: rgba(0,0,0,0.04); }
+html[data-theme="dark"] .mwMenuItem:hover { background: rgba(255,255,255,0.06); }
+
+.mwMenuItemDanger { color: var(--danger); }
+
+/* =========================
+   UI FOUNDATION — FORM FIELD
+   ========================= */
+
+.mwField { display: grid; gap: 8px; }
+.mwFieldTop { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.mwFieldLabel { font-weight: 900; font-size: 12px; }
+.mwReq { color: var(--danger); margin-left: 4px; }
+.mwFieldHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mwFieldError { font-size: 12px; color: var(--danger); font-weight: 800; }
+.mwFieldHintRight { font-size: 12px; color: var(--muted); }
