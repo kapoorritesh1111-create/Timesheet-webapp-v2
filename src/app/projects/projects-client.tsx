@@ -662,7 +662,7 @@ export default function ProjectsClient() {
           right={
             <>
               {manageUser ? pill("Assignment mode", "success") : null}
-              {selectedProjectId ? pill("Selected", "success") : pill("No project selected", "warn")}
+              {/* Selection is shown in the table via row highlight (not a pill/tag). */}
               {isAdmin ? (
                 <button
                   type="button"
@@ -684,12 +684,16 @@ export default function ProjectsClient() {
         <DataTable
           rows={filteredProjects}
           rowKey={(p) => p.id}
+          selectedRowId={selectedProjectId || undefined}
           onRowClick={(p) => onProjectRowClick(p.id)}
           emptyTitle="No projects"
           emptySubtitle="Create a project or adjust filters."
           actions={(p) => {
             const items: any[] = [
-              { label: "Open", onSelect: () => onProjectRowClick(p.id) },
+              {
+                label: isAdmin ? "Open" : "Select",
+                onSelect: () => onProjectRowClick(p.id),
+              },
               {
                 label: "Copy project ID",
                 onSelect: async () => {
@@ -716,7 +720,7 @@ export default function ProjectsClient() {
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 950 }}>{p.name || "Untitled"}</span>
                     <Tag tone={p.is_active ? "success" : "warn"}>{p.is_active ? "active" : "inactive"}</Tag>
-                    {selectedProjectId === p.id ? <Tag tone="default">selected</Tag> : null}
+                    {/* Selected state is shown via row highlight */}
                   </div>
                   <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>
                     {weekStartLabel(p.week_start)} • <span className="mono">{p.id}</span>

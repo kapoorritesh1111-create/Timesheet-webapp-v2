@@ -85,6 +85,9 @@ export default function DataTable<T>(props: {
   rows: T[];
   rowKey: (row: T) => string;
 
+  /** When provided, the matching row is rendered as selected (subtle highlight + left accent). */
+  selectedRowId?: string;
+
   onRowClick?: (row: T) => void;
 
   loading?: boolean;
@@ -135,10 +138,12 @@ export default function DataTable<T>(props: {
               const key = props.rowKey(row);
               const rowActions = typeof props.actions === "function" ? props.actions(row) : props.actions;
 
+              const isSelected = !!props.selectedRowId && props.selectedRowId === key;
+
               return (
                 <tr
                   key={key}
-                  className={props.onRowClick ? "mwRowClickable" : ""}
+                  className={(props.onRowClick ? "mwRowClickable" : "") + (isSelected ? " mwRowSelected" : "")}
                   onClick={() => props.onRowClick?.(row)}
                 >
                   {cols.map((c) => (

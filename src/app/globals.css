@@ -1562,8 +1562,32 @@ html[data-theme="dark"] .mwTable tbody td {
   background: rgba(37,99,235,0.06);
 }
 
+/* Selected row: subtle highlight + left accent (Monday-like) */
+.mwRowSelected td {
+  background: rgba(37,99,235,0.08);
+}
+
+.mwRowSelected td:first-child {
+  position: relative;
+}
+
+.mwRowSelected td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  background: var(--accent, #2563eb);
+  border-radius: 3px;
+}
+
 html[data-theme="dark"] .mwRowClickable:hover td {
   background: rgba(37,99,235,0.12);
+}
+
+html[data-theme="dark"] .mwRowSelected td {
+  background: rgba(37,99,235,0.16);
 }
 
 .mwTableCompact thead th,
