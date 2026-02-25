@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseBrowser";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
+import Drawer from "../ui/Drawer";
+import FormField from "../ui/FormField";
 
 type Role = "admin" | "manager" | "contractor";
 
@@ -32,6 +34,8 @@ export default function UserDrawer({
   managers: { id: string; full_name: string | null }[];
   onSaved: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"profile" | "access">("profile");
+
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -51,6 +55,7 @@ export default function UserDrawer({
 
   useEffect(() => {
     if (!open || !user) return;
+
     setMsg("");
     setSaving(false);
 
@@ -59,6 +64,8 @@ export default function UserDrawer({
     setManagerId(user.manager_id || "");
     setRate(Number(user.hourly_rate || 0));
     setActive(!!user.is_active);
+
+    setActiveTab("profile");
   }, [open, user]);
 
   // Load projects + membership when drawer opens
@@ -70,14 +77,8 @@ export default function UserDrawer({
     (async () => {
       setLoading(true);
       setMsg("");
-
       try {
-        const { data: prof, error: profErr } = await supabase
-          .from("profiles")
-          .select("org_id")
-          .eq("id", user.id)
-          .maybeSingle();
-
+        const { data: prof, error: profErr } = await supabase.from("profiles").select("org_id").eq("id", user.id).maybeSingle();
         if (profErr) throw profErr;
 
         const org_id = (prof as any)?.org_id;
@@ -112,6 +113,11 @@ export default function UserDrawer({
     return user.full_name || user.email || user.id;
   }, [user]);
 
+  const subtitle = useMemo(() => {
+    if (!user) return "";
+    return `${user.email || "—"} • ${user.id.slice(0, 8)}…`;
+  }, [user]);
+
   const filteredProjects = useMemo(() => {
     const q = projQuery.trim().toLowerCase();
     if (!q) return projects;
@@ -122,7 +128,6 @@ export default function UserDrawer({
     if (!user) return;
     setSaving(true);
     setMsg("");
-
     try {
       const payload: any = {
         full_name: fullName.trim() || null,
@@ -147,7 +152,6 @@ export default function UserDrawer({
   async function toggleProject(project_id: string, checked: boolean) {
     if (!user) return;
     setMsg("");
-
     // optimistic UI
     setMemberIds((prev) => {
       const n = new Set(prev);
@@ -166,17 +170,10 @@ export default function UserDrawer({
       if (checked) {
         const { error } = await supabase
           .from("project_members")
-          .upsert([{ org_id, project_id, user_id: user.id, profile_id: user.id, is_active: true }] as any, {
-            onConflict: "project_id,user_id",
-          });
+          .upsert([{ org_id, project_id, user_id: user.id, profile_id: user.id, is_active: true }] as any, { onConflict: "project_id,user_id" });
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("project_members")
-          .delete()
-          .eq("org_id", org_id)
-          .eq("project_id", project_id)
-          .eq("user_id", user.id);
+        const { error } = await supabase.from("project_members").delete().eq("org_id", org_id).eq("project_id", project_id).eq("user_id", user.id);
         if (error) throw error;
       }
 
@@ -216,204 +213,179 @@ export default function UserDrawer({
     }
   }
 
+  const tabs = useMemo(
+    () => [
+      { key: "profile", label: "Profile" },
+      { key: "access", label: "Access", count: memberIds.size },
+    ],
+    [memberIds.size]
+  );
+
   if (!open || !user) return null;
 
   return (
-    <div style={overlay}>
-      <div style={backdrop} onClick={onClose} />
-
-      <div style={panel}>
-        <div style={panelHeader}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 950, fontSize: 16, overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-            <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
-              {user.email || "—"} • {user.id.slice(0, 8)}…
-            </div>
-          </div>
-
-          <button className="iconBtn" onClick={onClose} aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div style={scrollArea}>
-          {msg ? (
-            <div className="card cardPad" style={{ marginBottom: 12 }}>
-              <div className="muted">{msg}</div>
-            </div>
-          ) : null}
-
-          {/* Card 1: User details */}
-          <div className="card cardPad" style={{ marginBottom: 12 }}>
-            <div className="drawerSectionTitle">User details</div>
-            <div className="drawerHelp">Edit role, manager, rate, and status.</div>
-
-            <label className="label">Full name</label>
-            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-
-            <div className="row" style={{ gap: 12, marginTop: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label className="label">Role</label>
-                <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                  <option value="contractor">Contractor</option>
-                  <option value="manager">Manager</option>
-                </select>
-              </div>
-
-              <div style={{ width: 180 }}>
-                <label className="label">Hourly rate</label>
-                <input className="input" value={String(rate)} onChange={(e) => setRate(Number(e.target.value))} inputMode="decimal" />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 12 }}>
-              <label className="label">Assign manager</label>
-              <select className="input" disabled={role !== "contractor"} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-                <option value="">—</option>
-                {managers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {(m.full_name || "Manager") + " (" + m.id.slice(0, 6) + "…)"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status: make deactivate obvious */}
-            <div style={{ marginTop: 14 }}>
-              <div className="drawerSectionTitle">Status</div>
-              <div className="statusRow">
-                <div className="statusLeft">
-                  <div className="statusLabel">{active ? "Active" : "Inactive"}</div>
-                  <div className="statusSub">{active ? "User can sign in and log time." : "User is disabled and cannot access the app."}</div>
-                </div>
-
-                <button
-                  type="button"
-                  className={`switch ${active ? "switchOn" : ""}`}
-                  onClick={() => setActive((v) => !v)}
-                  aria-label="Toggle active"
-                >
-                  <span className="switchKnob" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Project access */}
-          <div className="card cardPad">
-            <div className="drawerSectionTitle">Project access</div>
-            <div className="drawerHelp">Select projects to assign immediately.</div>
-
-            <div className="row" style={{ gap: 10, alignItems: "center" }}>
-              <span className="tag tagMuted">{memberIds.size ? `${memberIds.size} selected` : "None"}</span>
-              <div style={{ flex: 1 }} />
-              <button className="btnGhost" type="button" onClick={clearAllAccess} disabled={memberIds.size === 0}>
-                Clear access
-              </button>
-            </div>
-
-            <div style={{ marginTop: 10, position: "relative" }}>
-              <Search size={16} style={{ position: "absolute", left: 12, top: 12, opacity: 0.7 }} />
-              <input
-                className="input"
-                style={{ paddingLeft: 36 }}
-                placeholder="Search projects…"
-                value={projQuery}
-                onChange={(e) => setProjQuery(e.target.value)}
-              />
-            </div>
-
-            {loading ? (
-              <div className="muted" style={{ marginTop: 12 }}>
-                Loading…
-              </div>
-            ) : (
-              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                {filteredProjects.map((p) => {
-                  const checked = memberIds.has(p.id);
-                  return (
-                    <label key={p.id} className="pmRow2">
-                      <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
-                      <div style={{ minWidth: 0 }}>
-                        <div className="pmTitle2">{p.name || "Untitled project"}</div>
-                        <div className="pmMeta2">{p.id}</div>
-                      </div>
-                      <div className="pmBadgeWrap">
-                        <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
-                      </div>
-                    </label>
-                  );
-                })}
-
-                {filteredProjects.length === 0 ? (
-                  <div className="muted" style={{ padding: "10px 2px" }}>
-                    No projects match your search.
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-
-          <div style={{ height: 16 }} />
-        </div>
-
-        <div style={footer}>
-          <button className="pill" onClick={onClose}>
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title={title}
+      subtitle={subtitle}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(k) => setActiveTab(k as any)}
+      footer={
+        <>
+          <button className="pill" onClick={onClose} type="button">
             Close
           </button>
-          <button className="btn" onClick={saveProfile} disabled={saving}>
+          <button className="btn" onClick={saveProfile} disabled={saving} type="button">
             {saving ? "Saving…" : "Save changes"}
           </button>
+        </>
+      }
+    >
+      {msg ? (
+        <div className="card cardPad" style={{ marginBottom: 12 }}>
+          <div className="muted">{msg}</div>
         </div>
-      </div>
-    </div>
+      ) : null}
+
+      {activeTab === "profile" ? (
+        <div className="card cardPad" style={{ marginBottom: 12 }}>
+          <div className="drawerSectionTitle">User details</div>
+          <div className="drawerHelp">Edit role, manager, rate, and status.</div>
+
+          <FormField label="Full name" helpText="Shown across the app and on reports.">
+            {({ id, describedBy }) => (
+              <input id={id} aria-describedby={describedBy} className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            )}
+          </FormField>
+
+          <div className="row" style={{ gap: 12, marginTop: 12 }}>
+            <div style={{ flex: 1 }}>
+              <FormField label="Role" helpText="Managers can see their direct reports.">
+                {({ id, describedBy }) => (
+                  <select id={id} aria-describedby={describedBy} className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                    <option value="contractor">Contractor</option>
+                    <option value="manager">Manager</option>
+                  </select>
+                )}
+              </FormField>
+            </div>
+
+            <div style={{ width: 180 }}>
+              <FormField label="Hourly rate" helpText="Used for cost calculations.">
+                {({ id, describedBy }) => (
+                  <input
+                    id={id}
+                    aria-describedby={describedBy}
+                    className="input"
+                    value={String(rate)}
+                    onChange={(e) => setRate(Number(e.target.value))}
+                    inputMode="decimal"
+                  />
+                )}
+              </FormField>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <FormField label="Assign manager" helpText={role !== "contractor" ? "Only contractors have an assigned manager." : "Controls who can view this contractor."}>
+              {({ id, describedBy }) => (
+                <select
+                  id={id}
+                  aria-describedby={describedBy}
+                  className="input"
+                  disabled={role !== "contractor"}
+                  value={managerId}
+                  onChange={(e) => setManagerId(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {managers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {(m.full_name || "Manager") + " (" + m.id.slice(0, 6) + "…)"}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="drawerSectionTitle">Status</div>
+            <div className="statusRow">
+              <div className="statusLeft">
+                <div className="statusLabel">{active ? "Active" : "Inactive"}</div>
+                <div className="statusSub">{active ? "User can sign in and log time." : "User is disabled and cannot access the app."}</div>
+              </div>
+
+              <button
+                type="button"
+                className={`switch ${active ? "switchOn" : ""}`}
+                onClick={() => setActive((v) => !v)}
+                aria-label="Toggle active"
+              >
+                <span className="switchKnob" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "access" ? (
+        <div className="card cardPad">
+          <div className="drawerSectionTitle">Project access</div>
+          <div className="drawerHelp">Select projects to assign immediately.</div>
+
+          <div className="row" style={{ gap: 10, alignItems: "center" }}>
+            <span className="tag tagMuted">{memberIds.size ? `${memberIds.size} selected` : "None"}</span>
+            <div style={{ flex: 1 }} />
+            <button className="btnGhost" type="button" onClick={clearAllAccess} disabled={memberIds.size === 0}>
+              Clear access
+            </button>
+          </div>
+
+          <div style={{ marginTop: 10, position: "relative" }}>
+            <Search size={16} style={{ position: "absolute", left: 12, top: 12, opacity: 0.7 }} />
+            <input
+              className="input"
+              style={{ paddingLeft: 36 }}
+              placeholder="Search projects…"
+              value={projQuery}
+              onChange={(e) => setProjQuery(e.target.value)}
+            />
+          </div>
+
+          {loading ? (
+            <div className="muted" style={{ marginTop: 12 }}>
+              Loading…
+            </div>
+          ) : (
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {filteredProjects.map((p) => {
+                const checked = memberIds.has(p.id);
+                return (
+                  <label key={p.id} className="pmRow2">
+                    <input type="checkbox" checked={checked} onChange={(e) => toggleProject(p.id, e.target.checked)} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="pmTitle2">{p.name || "Untitled project"}</div>
+                      <div className="pmMeta2">{p.id}</div>
+                    </div>
+                    <div className="pmBadgeWrap">
+                      <span className={`tag ${p.is_active ? "tagOk" : "tagWarn"}`}>{p.is_active ? "Active" : "Inactive"}</span>
+                    </div>
+                  </label>
+                );
+              })}
+
+              {filteredProjects.length === 0 ? (
+                <div className="muted" style={{ padding: "10px 2px" }}>
+                  No projects match your search.
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </Drawer>
   );
 }
-
-const overlay: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  zIndex: 50,
-};
-
-const backdrop: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  background: "rgba(0,0,0,0.42)",
-};
-
-const panel: React.CSSProperties = {
-  position: "absolute",
-  top: 0,
-  right: 0,
-  height: "100%",
-  width: "min(560px, 92vw)",
-  background: "rgba(12,16,24,0.98)",
-  borderLeft: "1px solid rgba(255,255,255,0.10)",
-  boxShadow: "0 20px 80px rgba(0,0,0,0.55)",
-  display: "flex",
-  flexDirection: "column",
-};
-
-const panelHeader: React.CSSProperties = {
-  padding: "16px 16px 10px",
-  display: "flex",
-  gap: 12,
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-};
-
-const scrollArea: React.CSSProperties = {
-  flex: 1,
-  overflow: "auto",
-  padding: "0 16px 0",
-};
-
-const footer: React.CSSProperties = {
-  padding: 16,
-  borderTop: "1px solid rgba(255,255,255,0.08)",
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: 10,
-  background: "rgba(12,16,24,0.98)",
-};
