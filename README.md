@@ -1,212 +1,379 @@
-# Timesheet SaaS — Current Baseline (Next.js 14 + Supabase, DB-first)
+# Timesheet v2 — Multi-Tenant SaaS (Baseline v2.0)
 
-This README is the **working baseline** for the repo + DB so we can keep iterating without losing context.
+A multi-tenant Timesheet SaaS built with:
 
----
+* **Next.js 14 (App Router)**
+* **TypeScript**
+* **Supabase (Auth + Postgres + RLS)**
+* Custom SaaS UI shell inspired by **Monday.com**
 
-## 1) What this app is
-
-A multi-tenant timesheet + approvals + payroll reporting app with strict org scoping.
-
-### Roles
-- **admin**
-  - Full org visibility
-  - Invite users (manager/contractor), assign contractor → manager
-  - Create projects + activate/deactivate
-  - Manage project access (People → Project access mode)
-  - Approve anyone
-- **manager**
-  - Scope = **direct reports only**
-  - Can view submitted entries for direct reports and approve/reject
-  - Can open **People** (profiles) but only see assigned reports (and self)
-- **contractor**
-  - Scope = self only
-  - Can submit timesheets only for assigned projects
+This document reflects the **stable end-of-day baseline** before UI/UX refinements begin.
 
 ---
 
-## 2) Pages that are in a “good” state now
+# 🎯 Product Vision
 
-### ✅ Login / Reset / Onboarding
-- Auth works via Supabase Auth
-- Onboarding gate enforced (RequireOnboarding + `isProfileComplete()` checks)
+Build a modern SaaS-grade time tracking and approval system with:
 
-### ✅ Dashboard (`/dashboard`)
-- Clean landing after login/onboarding
-- Shows basic account overview (role, active flag, onboarding status, hourly rate for contractors)
-
-### ✅ Timesheet (`/timesheet`)
-- Standard timesheet entry flow
-- Uses DB-backed view (`v_time_entries`) for consistent computed hours and reporting fields
-
-### ✅ Projects (`/projects`)
-- Admin:
-  - Create project (includes `week_start`)
-  - Activate/deactivate
-  - Assign projects to a user via `/projects?user=<id>`
-- Manager/Contractor:
-  - Sees only allowed projects (via RLS + membership)
-- Drawer UX:
-  - Click project row opens details drawer
-  - Shows project settings + a read-only member list
-
-### ✅ Approvals (`/approvals`)
-- Manager/Admin only
-- Loads submitted entries for the selected week (week navigation included)
-- Approve = sets week’s submitted rows → approved
-- Reject = sets week’s submitted rows → rejected (sent back editable)
-
-### ✅ Payroll report (`/reports/payroll`)
-- Uses `v_time_entries.hours_worked` + `time_entries.hourly_rate_snapshot`
-- Filters:
-  - Date preset (week/month/custom)
-  - Status
-  - Project
-  - Contractor (admin/manager; contractor is locked to self)
-- Outputs:
-  - KPI cards (Total Hours, Total Pay, Avg Rate)
-  - Summary by Contractor
-  - Summary by Project
-  - CSV export (summary or detail)
-
-### ✅ Admin Invite (`/admin`)
-- Admin-only (RequireOnboarding + role guard)
-- Invite user via `/api/admin/invite`
-- Supports:
-  - Invite manager
-  - Invite contractor with:
-    - hourly rate
-    - required manager assignment
-
-### ✅ People / Profiles (`/profiles`)
-- “People” directory + edit page
-- Visibility intent:
-  - Admin: all org users
-  - Manager: self + direct reports
-  - Contractor: self only
-- Edit rules (UI + should align with DB policies):
-  - Admin can edit everyone
-  - Manager can edit self + direct reports (esp. hourly rate for direct reports)
-  - Contractor can only edit self (limited fields)
-
-> NOTE: This page is still the most visually inconsistent vs the newer pages (it uses older layout patterns vs AppShell + theme classes).
+* Clean directory-style admin management
+* Right-side drawers for editing (Monday.com pattern)
+* Role-based access (admin / manager / contractor)
+* Strong RLS + server-side enforcement
+* Scalable multi-tenant org structure
 
 ---
 
-## 3) Navigation (TopNav)
+# 🟢 Current Deployment Status
 
-- TopNav is hidden on: `/`, `/login`, `/reset`, `/onboarding`
-- Visible links by role:
-  - Everyone: Dashboard, Timesheet, Payroll, Projects
-  - Manager/Admin: Approvals, People
-  - Admin only: Admin
-
----
-
-## 4) Database baseline (critical)
-
-### Core tables (RLS enabled)
-- `orgs`
-- `profiles`
-- `projects`
-- `project_members`
-- `time_entries`
-
-### View: `v_time_entries` (read model)
-This view is the primary read model for:
-- `/approvals`
-- `/reports/payroll`
-- (and optionally `/timesheet` UI lists)
-
-It must include **computed hours**:
-
-- `hours_worked` computed in SQL (recommended logic):
-  - `hours = (time_out - time_in) - lunch_hours`
-  - handles NULLs safely
-  - clamps negatives to 0 (recommended)
-
-This view should also expose (at minimum):
-- `org_id`, `user_id`, `project_id`, `entry_date`, `status`, `notes`
-- `hours_worked`
-- `hourly_rate_snapshot`
-
-Optional (nice for UI):
-- `full_name` (from profiles)
-- `project_name` (from projects)
+**Deployment:** Stable
+**Baseline locked:** Yes
+**Step 19/20:** Reverted (not applied)
+**Regression state:** Clean and working
 
 ---
 
-## 5) Repo structure
+# 🏗 Architecture Overview
 
-src/
-- app/
-  - admin/
-  - approvals/
-  - dashboard/
-  - profiles/
-  - projects/
-  - reports/payroll/
-  - timesheet/
-  - api/admin/invite/
-- components/
-  - auth/
-  - layout/ (AppShell, TopNav)
-- lib/
-  - useProfile.ts
-  - supabaseBrowser.ts
-  - dateRanges.ts
-  - date.ts
+## Frontend
+
+* App Router structure
+* Sidebar navigation (Home, My Work, Approvals, Projects, People, Payroll)
+* Header with profile dropdown
+* Drawer-based editing system
+
+UI style direction:
+
+* Dark SaaS theme
+* Token-based styling
+* Compact spacing
+* Tag-style status indicators
 
 ---
 
-## 6) Environment variables
+## Backend (Supabase)
 
-Required:
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
-- SUPABASE_SERVICE_ROLE_KEY   (server-only; API routes)
-- NEXT_PUBLIC_SITE_URL        (invite redirect base)
+### Auth
 
----
+* Supabase Auth
+* Email invite flow
+* `/auth/callback` redirect
+* Onboarding flow enforced
 
-## 7) Where we stand right now
+### Database
 
-### Solid + working
-- End-to-end flow: login → onboarding → dashboard → timesheet → submit → approvals → payroll reporting
-- Org scoping is DB-first (RLS is the source of truth)
-- Approvals + Payroll run on `v_time_entries` so hours logic is consistent
+Core tables include:
 
-### Remaining “polish + correctness” gaps
-1) **People page UI consistency**
-   - `/profiles` still uses older layout conventions vs the AppShell/theme system
-   - Should be upgraded to match Projects/Payroll/Approvals (cards, grid, tags, alerts)
+* `orgs`
+* `profiles`
+* `projects`
+* `project_members`
+* `time_entries`
 
-2) **Admin polish**
-   - Optional: invite history panel (recent invites)
-   - Optional: org settings (org name, default week start)
+### Security Model (Defense-in-Depth)
 
-3) **DB/RLS validation pass (quick but important)**
-   - Confirm managers can always select **self + direct reports** in `profiles`
-   - Confirm `v_time_entries` exposes `org_id` + `hours_worked` (and optional names) used by pages
-   - Add indexes if needed once data grows (entry_date, org_id, user_id, project_id, status)
+1. UI role gating
+2. Admin API validation (checks real session token)
+3. Supabase RLS
+4. Trigger guards (e.g., `guard_profiles_update`)
 
 ---
 
-## 8) Recommended next change (confirmed)
+# 👥 Role Model
 
-### Next step (highest value): Rebuild “People” to match theme
-- Convert `/profiles/page.tsx` to use:
-  - `AppShell`
-  - the shared CSS classes used elsewhere (`card`, `cardPad`, `alert`, `pill`, `btnPrimary`, etc.)
-- Keep the **exact same permissions logic** (no behavior change), just UX + consistency
-- This is the biggest “professional” upgrade from login onward.
+## Admin
 
-After that:
-- Admin: add Invite History + Org Settings
-- DB: performance indexes + tighten policies if any edge cases appear
+* Invite users
+* Assign managers
+* Assign project access
+* Edit user roles
+* Activate / deactivate users
+* View org snapshot
 
-## Engineering
-- Roadmap: `docs/roadmap.md`
-- Environment setup: `docs/env.md`
-- Release checklist: `docs/release-checklist.md`
-- Architecture decisions (ADRs): `docs/adr/`
+## Manager
+
+* View assigned contractors
+* Approve time entries
+* Update contractor profiles (per rules)
+
+## Contractor
+
+* Submit time entries
+* Update limited profile fields
+
+---
+
+# 📂 Core Routes (Working)
+
+## Admin
+
+### `/admin`
+
+* Org snapshot
+* User counts
+* Project counts
+* Hours this month
+* Directory actions
+* “New invite” drawer
+
+### `/admin/invite`
+
+* Invite flow via drawer
+* Create user (service role)
+* Create profile
+* Assign manager
+* Assign project access
+
+### `/admin/users`
+
+* Directory table
+* Search
+* Role filter
+* Status filter (active/disabled)
+* Row click opens drawer
+* Drawer sections:
+
+  * User details
+  * Project access
+* Save changes
+* Activate / deactivate user
+
+### `/admin/invitations`
+
+* Pending invites list
+* Status display
+
+---
+
+## People
+
+### `/profiles`
+
+* Directory of profiles
+* Basic editing functionality
+* Manager relationships visible
+
+---
+
+## Projects
+
+### `/projects`
+
+* Project list
+* Status indicators
+* Project membership relationships working
+
+---
+
+## Timesheet
+
+### `/timesheet`
+
+* Time entry creation
+* Entry persistence
+* Role-based access enforced
+
+---
+
+## Approvals
+
+### `/approvals`
+
+* Manager/admin approval flow
+* State-based transitions
+
+---
+
+## Payroll
+
+### `/payroll`
+
+* Payroll overview
+
+### `/reports/payroll`
+
+* Payroll reporting route
+
+---
+
+# 🔐 Admin API Endpoints (Server-Side)
+
+Located under:
+
+```
+/src/app/api/admin/*
+```
+
+Key endpoints:
+
+* `POST /api/admin/invite`
+* `GET /api/admin/users`
+* `GET /api/admin/invitations`
+
+Pattern:
+
+1. Validate caller token
+2. Confirm role = admin
+3. Use `SUPABASE_SERVICE_ROLE_KEY`
+4. Perform privileged operations
+
+---
+
+# 🧠 What Is Stable Right Now
+
+✔ Login & onboarding
+✔ Invite user
+✔ Create profile row
+✔ Assign manager
+✔ Assign project membership
+✔ Edit user role
+✔ Activate / deactivate user
+✔ Users drawer UI functional
+✔ Org snapshot dashboard
+✔ Project membership persistence
+✔ RLS enforcement functioning
+
+---
+
+# ⚠ Known Technical Realities
+
+* Step 19 introduced route coupling issues (reverted)
+* Some pages still have inconsistent spacing
+* People page UX not yet SaaS-level
+* Invitations page needs visual redesign
+* Drawer component not yet centralized (duplicated structure)
+* Table layouts vary across pages
+* No shared DataTable abstraction yet
+* No shared Drawer abstraction yet
+
+---
+
+# 🎨 UX Maturity Assessment (Honest)
+
+### Current Level: Early SaaS Beta
+
+Strengths:
+
+* Solid architecture
+* Real RLS enforcement
+* Real multi-role logic
+* Drawer interaction pattern present
+* Clean navigation shell
+
+Weaknesses:
+
+* Inconsistent table spacing
+* Some filters misaligned
+* Visual hierarchy not unified
+* No system-level component library
+* Some density mismatches vs Monday.com
+
+---
+
+# 🚀 Next Phase Roadmap (Starting Tomorrow)
+
+## Phase 1 — UI System Foundation (No DB Changes)
+
+1. Build shared `Drawer` component
+
+   * Header
+   * Tabs
+   * Scrollable body
+   * Sticky footer with buttons
+
+2. Build shared `DataTable` component
+
+   * Column definition
+   * Row click
+   * Empty state
+   * Loading state
+   * Tag rendering
+   * Actions dropdown
+
+3. Build shared `FormField` component
+
+   * Label
+   * Help text
+   * Error display
+   * Consistent spacing
+
+---
+
+## Phase 2 — Page Refinement
+
+Order:
+
+1. Admin Invitations (weakest visually)
+2. Admin Users (alignment + density polish)
+3. People page redesign to match Admin Users pattern
+4. Approvals polish
+5. Timesheet week UI improvements
+
+---
+
+## Phase 3 — SaaS Polish
+
+* Status chips standardized
+* Confirmation modals
+* Toast notifications
+* Optimistic UI updates
+* Skeleton loading states
+* Error boundaries
+
+---
+
+# 🧪 Regression Checklist (Before Every Deploy)
+
+Auth:
+
+* Login works
+* Onboarding works
+* Logout works
+
+Admin:
+
+* Invite works
+* Profile row created
+* Drawer saves properly
+* Project membership updates
+* Disable user works
+
+Timesheet:
+
+* Entry creation works
+* Approval works
+
+---
+
+# 🏁 Baseline Locked
+
+This README represents the stable state at the end of today.
+
+All new work from tomorrow forward should:
+
+* Be incremental
+* Avoid deleting working glue logic
+* Avoid multi-file refactors in one step
+* Follow Monday.com visual patterns gradually
+
+---
+
+# 🧭 Design Reference
+
+Primary inspiration:
+
+* Monday.com Admin + Directory UX
+* Right-side drawer editing
+* Clean table grids
+* Clear visual hierarchy
+* Compact but readable density
+
+---
+
+If you want, tomorrow we can:
+
+* Start with a **UI system blueprint**
+* Or rebuild **Admin Invitations page first**
+* Or create a visual style token cleanup plan
+
+You made the correct move freezing today’s repo.
+Tomorrow we move forward cleanly and intentionally.
