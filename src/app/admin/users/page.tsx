@@ -9,7 +9,7 @@ import { supabase } from "../../../lib/supabaseBrowser";
 import { useProfile } from "../../../lib/useProfile";
 import { Search } from "lucide-react";
 import ToolbarBlock from "../../../components/ui/ToolbarBlock";
-import { Tag } from "../../../components/ui/DataTable";
+import DataTable, { Tag } from "../../../components/ui/DataTable";
 
 type Role = "admin" | "manager" | "contractor";
 type ManagerLite = { id: string; full_name: string | null };
@@ -199,88 +199,66 @@ function UsersDirectory() {
         message={msg ? <span>{msg}</span> : null}
       />
 
-      <div className="card" style={{ overflow: "hidden" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 0.7fr 0.8fr 0.6fr 0.6fr 0.7fr",
-            gap: 12,
-            padding: "12px 14px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 12,
-            fontWeight: 900,
-            color: "rgba(255,255,255,0.72)",
-          }}
-        >
-          <div>User</div>
-          <div>Role</div>
-          <div>Manager</div>
-          <div>Rate</div>
-          <div>Status</div>
-          <div>Last sign-in</div>
-        </div>
-
-        {loading ? (
-          <div style={{ padding: 18 }} className="muted">Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: 18 }}>
-            <div style={{ fontWeight: 950 }}>No results</div>
-            <div className="muted" style={{ marginTop: 6 }}>Try changing search or filters.</div>
-          </div>
-        ) : (
-          filtered.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setSelected(r)}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.6fr 0.7fr 0.8fr 0.6fr 0.6fr 0.7fr",
-                  gap: 12,
-                  padding: "12px 14px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {r.full_name || r.email || "—"}
-                  </div>
-                  <div className="muted" style={{ fontSize: 12, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {r.email || r.id}
-                  </div>
+      <DataTable
+        rows={filtered}
+        rowKey={(r) => r.id}
+        loading={loading}
+        onRowClick={(r) => setSelected(r)}
+        emptyTitle="No users found"
+        emptySubtitle="Try adjusting search or filters."
+        actions={(r) => [
+          { label: "Edit", onSelect: () => setSelected(r) },
+          {
+            label: "Copy email",
+            onSelect: async () => {
+              if (!r.email) return;
+              try { await navigator.clipboard.writeText(r.email); } catch {}
+            },
+            disabled: !r.email,
+          },
+          {
+            label: "Copy user ID",
+            onSelect: async () => {
+              try { await navigator.clipboard.writeText(r.id); } catch {}
+            },
+          },
+        ]}
+        columns={[
+          {
+            key: "user",
+            header: "User",
+            cell: (r) => (
+              <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {r.full_name || r.email || "—"}
                 </div>
-
-                <div style={{ textTransform: "capitalize" }}>{r.role}</div>
-
-                <div className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {r.role === "contractor"
-                    ? managers.find((m) => m.id === r.manager_id)?.full_name || "—"
-                    : "—"}
+                <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {r.email || r.id}
                 </div>
-
-                <div>{Number(r.hourly_rate || 0)}</div>
-
-                <div>
-                  <span className={`tag ${r.is_active ? "tagOk" : "tagWarn"}`}>
-                    {r.is_active ? "active" : "inactive"}
-                  </span>
-                </div>
-
-                <div>{fmtDate(r.last_sign_in_at)}</div>
               </div>
-            </button>
-          ))
-        )}
-      </div>
+            ),
+          },
+          { key: "role", header: "Role", width: 140, cell: (r) => <span style={{ textTransform: "capitalize", fontWeight: 900 }}>{r.role}</span> },
+          {
+            key: "manager",
+            header: "Manager",
+            width: 180,
+            cell: (r) => (
+              <span className="muted">
+                {r.role === "contractor" ? managers.find((m) => m.id === r.manager_id)?.full_name || "—" : "—"}
+              </span>
+            ),
+          },
+          { key: "rate", header: "Rate", width: 110, align: "right", cell: (r) => <span style={{ fontWeight: 900 }}>{Number(r.hourly_rate || 0)}</span> },
+          {
+            key: "status",
+            header: "Status",
+            width: 120,
+            cell: (r) => <Tag tone={r.is_active ? "success" : "warn"}>{r.is_active ? "active" : "inactive"}</Tag>,
+          },
+          { key: "last", header: "Last sign-in", width: 150, cell: (r) => <span className="muted">{fmtDate(r.last_sign_in_at)}</span> },
+        ]}
+      />
 
       <UserDrawer
         open={!!selected}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseBrowser";
 import { useProfile } from "../../lib/useProfile";
-import { Copy, Filter, Search } from "lucide-react";
+import { Copy, Search } from "lucide-react";
 import DataTable, { Tag } from "../ui/DataTable";
 import ToolbarBlock from "../ui/ToolbarBlock";
 
@@ -74,7 +74,7 @@ export default function PeopleDirectory({
   useEffect(() => {
     if (!profile?.org_id) return;
 
-    (async () => {
+    (async function loadProfiles() {
       setMsg("");
       const { data, error } = await supabase
         .from("profiles")
@@ -107,6 +107,39 @@ export default function PeopleDirectory({
       baselineRef.current = base;
     })();
   }, [profile?.org_id]);
+
+  async function reload() {
+    if (!profile?.org_id) return;
+    setMsg("");
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(
+        "id, org_id, full_name, role, hourly_rate, is_active, manager_id, created_at"
+      )
+      .eq("org_id", profile.org_id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      setMsg(error.message);
+      setRows([]);
+      return;
+    }
+
+    const list = (data ?? []) as ProfileRow[];
+    setRows(list);
+
+    const base: Record<string, string> = {};
+    for (const r of list) {
+      base[r.id] = JSON.stringify({
+        full_name: r.full_name ?? "",
+        role: r.role,
+        hourly_rate: r.hourly_rate ?? 0,
+        is_active: r.is_active,
+        manager_id: r.manager_id ?? "",
+      });
+    }
+    baselineRef.current = base;
+  }
 
   const visibleRows = useMemo(() => {
     if (!profile || !userId) return [];
@@ -343,51 +376,48 @@ export default function PeopleDirectory({
               />
             </div>
 
-            <div className="peopleFilters">
-              <div className="peopleFilter">
-                <Filter size={16} />
+            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <select
+                className="select"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value as any)}
+                aria-label="Role filter"
+                style={{ width: 160 }}
+              >
+                <option value="all">All roles</option>
+                <option value="admin">Admins</option>
+                <option value="manager">Managers</option>
+                <option value="contractor">Contractors</option>
+              </select>
+
+              <select
+                className="select"
+                value={activeFilter}
+                onChange={(e) => setActiveFilter(e.target.value as any)}
+                aria-label="Status filter"
+                style={{ width: 160 }}
+              >
+                <option value="all">All status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+
+              {mode === "people" ? (
                 <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value as any)}
-                  aria-label="Role filter"
+                  className="select"
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value as any)}
+                  aria-label="Scope filter"
+                  disabled={!isAdmin}
+                  title={!isAdmin ? "Admin only" : ""}
+                  style={{ width: 160 }}
                 >
-                  <option value="all">All roles</option>
-                  <option value="admin">Admins</option>
-                  <option value="manager">Managers</option>
-                  <option value="contractor">Contractors</option>
+                  <option value="visible">Visible</option>
+                  <option value="all">All org (admin)</option>
                 </select>
-              </div>
+              ) : null}
 
-              <div className="peopleFilter">
-                <select
-                  value={activeFilter}
-                  onChange={(e) => setActiveFilter(e.target.value as any)}
-                  aria-label="Status filter"
-                >
-                  <option value="all">All status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              {mode === "people" && (
-                <div className="peopleFilter">
-                  <select
-                    value={scope}
-                    onChange={(e) => setScope(e.target.value as any)}
-                    aria-label="Scope filter"
-                    disabled={!isAdmin}
-                    title={!isAdmin ? "Admin only" : ""}
-                  >
-                    <option value="visible">Visible</option>
-                    <option value="all">All org (admin)</option>
-                  </select>
-                </div>
-              )}
-
-              <button className="pill" onClick={clearFilters}>
-                Clear
-              </button>
+              <button className="pill" onClick={clearFilters}>Clear</button>
             </div>
           </>
         }
@@ -397,6 +427,9 @@ export default function PeopleDirectory({
             <Tag tone="success">Active: {counts.active}</Tag>
             <Tag tone="warn">Inactive: {counts.inactive}</Tag>
             <Tag tone="default">Showing: {counts.showing}</Tag>
+            <button className="pill" onClick={reload}>
+              Refresh
+            </button>
           </>
         }
         message={msg ? <span>{msg}</span> : null}

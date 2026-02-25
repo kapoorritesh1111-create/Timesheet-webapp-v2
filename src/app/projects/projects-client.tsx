@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "../../components/layout/AppShell";
 import { supabase } from "../../lib/supabaseBrowser";
 import { useProfile } from "../../lib/useProfile";
+import ToolbarBlock from "../../components/ui/ToolbarBlock";
+import DataTable, { Tag } from "../../components/ui/DataTable";
+import Drawer from "../../components/ui/Drawer";
+import FormField from "../../components/ui/FormField";
+import { Search } from "lucide-react";
 
 type WeekStart = "sunday" | "monday";
 type ActiveFilter = "all" | "active" | "inactive";
@@ -97,9 +102,8 @@ export default function ProjectsClient() {
   const isAdmin = profile?.role === "admin";
   const isManagerOrAdmin = profile?.role === "admin" || profile?.role === "manager";
 
-  function tag(text: string, kind?: "ok" | "warn") {
-    const cls = kind === "ok" ? "tag tagOk" : kind === "warn" ? "tag tagWarn" : "tag";
-    return <span className={cls}>{text}</span>;
+  function pill(text: string, tone?: "success" | "warn" | "default") {
+    return <Tag tone={tone ?? "default"}>{text}</Tag>;
   }
 
   function setProjectInUrl(projectId: string) {
@@ -639,223 +643,318 @@ export default function ProjectsClient() {
         </div>
       ) : null}
 
-      {/* Filters */}
-      <div className="card cardPad" style={{ marginTop: 12 }}>
-        <div className="prFilters">
-          <div className="prFiltersLeft">
-            <div className="prField">
-              <div className="prLabel">Filter</div>
-              <select value={activeFilter} onChange={(e) => setActiveFilter(e.target.value as ActiveFilter)}>
-                <option value="all">All</option>
-                <option value="active">Active only</option>
-                <option value="inactive">Inactive only</option>
-              </select>
-            </div>
-
-            <div className="prSearch">
-              <div className="prLabel">Search</div>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID" />
-            </div>
-          </div>
-
-          <div className="prFiltersRight">
-            {manageUser ? tag("Assignment mode", "ok") : null}
-            {selectedProjectId ? tag("Selected", "ok") : tag("No project selected", "warn")}
-          </div>
-        </div>
-      </div>
-
-      {/* Project list */}
-      <div className="prList" style={{ marginTop: 12 }}>
-        {filteredProjects.map((p) => {
-          const assigned = assignedProjectIds.has(p.id);
-          const selected = selectedProjectId === p.id;
-
-          return (
-            <div
-              key={p.id}
-              className={`prRow ${!p.is_active ? "prRowInactive" : ""}`}
-              onClick={() => onProjectRowClick(p.id)}
-              role="button"
-              tabIndex={0}
-              title="Click to select (Admin also opens details)"
-            >
-              <div className="prRowLeft">
-                <span className="prDot" />
-                <div>
-                  <div className="prRowTitle">
-                    {p.name} {p.is_active ? tag("Active", "ok") : tag("Inactive", "warn")}{" "}
-                    {selected ? tag("Selected", "ok") : null}
-                  </div>
-                  <div className="prRowMeta muted">
-                    {weekStartLabel(p.week_start)} • ID:{" "}
-                    <span
-                      className="mono"
-                      style={{ cursor: "copy" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(p.id);
-                      }}
-                      title="Click to copy"
-                    >
-                      {p.id}
-                    </span>
-                  </div>
-                </div>
+      <div style={{ maxWidth: 1100, marginTop: 12 }}>
+        <ToolbarBlock
+          left={
+            <>
+              <div className="peopleSearch">
+                <Search size={16} />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…" />
               </div>
 
-              <div
-                className="prRowActions"
-                onClick={(e) => {
-                  // prevent row click when using controls
-                  e.stopPropagation();
-                }}
-              >
-                {/* Admin-only assignment UI when /projects?user=... */}
-                {manageUser && isAdmin ? (
-                  <div className="prInline">
-                    <span className="prInlineLabel">{assigned ? "Assigned" : "Not assigned"}</span>
+              <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <select
+                  className="select"
+                  value={activeFilter}
+                  onChange={(e) => setActiveFilter(e.target.value as ActiveFilter)}
+                  style={{ width: 170 }}
+                >
+                  <option value="all">All</option>
+                  <option value="active">Active only</option>
+                  <option value="inactive">Inactive only</option>
+                </select>
+
+                <button
+                  className="pill"
+                  onClick={() => {
+                    setQ("");
+                    setActiveFilter("all");
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </>
+          }
+          right={
+            <>
+              {manageUser ? pill("Assignment mode", "success") : null}
+              {selectedProjectId ? pill("Selected", "success") : pill("No project selected", "warn")}
+              <button className="pill" onClick={reloadProjects}>
+                Refresh
+              </button>
+            </>
+          }
+          message={fetchErr ? <span>{fetchErr}</span> : null}
+        />
+
+        <DataTable
+          rows={filteredProjects}
+          rowKey={(p) => p.id}
+          onRowClick={(p) => onProjectRowClick(p.id)}
+          emptyTitle="No projects"
+          emptySubtitle="Create a project or adjust filters."
+          actions={(p) => {
+            const items: any[] = [
+              { label: "Open", onSelect: () => onProjectRowClick(p.id) },
+              {
+                label: "Copy project ID",
+                onSelect: async () => {
+                  try {
+                    await navigator.clipboard.writeText(p.id);
+                  } catch {}
+                },
+              },
+            ];
+            if (isAdmin) {
+              items.push({
+                label: p.is_active ? "Deactivate" : "Activate",
+                onSelect: () => toggleProjectActive(p.id, !p.is_active),
+              });
+            }
+            return items;
+          }}
+          columns={[
+            {
+              key: "name",
+              header: "Project",
+              cell: (p) => (
+                <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 950 }}>{p.name || "Untitled"}</span>
+                    <Tag tone={p.is_active ? "success" : "warn"}>{p.is_active ? "active" : "inactive"}</Tag>
+                    {selectedProjectId === p.id ? <Tag tone="default">selected</Tag> : null}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {weekStartLabel(p.week_start)} • <span className="mono">{p.id}</span>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              key: "week",
+              header: "Week start",
+              width: 160,
+              cell: (p) =>
+                isAdmin ? (
+                  <select
+                    className="select"
+                    value={(p.week_start || "sunday") as WeekStart}
+                    disabled={savingWeekStartId === p.id}
+                    onChange={(e) => updateProjectWeekStart(p.id, e.target.value as WeekStart)}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="sunday">Sunday</option>
+                    <option value="monday">Monday</option>
+                  </select>
+                ) : (
+                  <span>{(p.week_start || "sunday") === "monday" ? "Monday" : "Sunday"}</span>
+                ),
+            },
+            {
+              key: "assign",
+              header: "Assigned",
+              width: 140,
+              cell: (p) => {
+                if (!manageUser || !isAdmin) return <span className="muted">—</span>;
+                const assigned = assignedProjectIds.has(p.id);
+                return (
+                  <label style={{ display: "flex", gap: 10, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={assigned}
                       disabled={busyProjectId === p.id}
                       onChange={(e) => toggleAssignment(p.id, e.target.checked)}
-                      title="Toggle assignment"
                     />
-                    <span className="prInlineSaving muted">{busyProjectId === p.id ? "Saving…" : ""}</span>
-                  </div>
-                ) : null}
-
-                {/* Admin-only project controls */}
-                {isAdmin ? (
-                  <div className="prInline">
-                    <select
-                      value={(p.week_start || "sunday") as WeekStart}
-                      disabled={savingWeekStartId === p.id}
-                      onChange={(e) => updateProjectWeekStart(p.id, e.target.value as WeekStart)}
-                      title="Week start"
-                    >
-                      <option value="sunday">Sunday</option>
-                      <option value="monday">Monday</option>
-                    </select>
-
-                    <button
-                      className={p.is_active ? "" : "btnPrimary"}
-                      disabled={busyProjectId === p.id}
-                      onClick={() => toggleProjectActive(p.id, !p.is_active)}
-                      title="Toggle active"
-                    >
-                      {busyProjectId === p.id ? "Saving…" : p.is_active ? "Deactivate" : "Activate"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {busyProjectId === p.id ? "Saving…" : assigned ? "Yes" : "No"}
+                    </span>
+                  </label>
+                );
+              },
+            },
+            {
+              key: "toggle",
+              header: "",
+              width: 140,
+              cell: (p) =>
+                isAdmin ? (
+                  <button
+                    className={p.is_active ? "pill" : "btnPrimary"}
+                    disabled={busyProjectId === p.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleProjectActive(p.id, !p.is_active);
+                    }}
+                  >
+                    {busyProjectId === p.id ? "Saving…" : p.is_active ? "Deactivate" : "Activate"}
+                  </button>
+                ) : (
+                  <span />
+                ),
+            },
+          ]}
+        />
       </div>
-
       {/* Drawer */}
-      {drawerOpen && drawerProject ? (
-        <div className="prDrawerOverlay" onClick={closeDrawer}>
-          <div className="prDrawer" onClick={(e) => e.stopPropagation()}>
-            <div className="prDrawerHeader">
-              <div>
-                <div className="prDrawerTitle">{drawerProject.name}</div>
-                <div className="prDrawerTags">
-                  {drawerProject.is_active ? tag("Active", "ok") : tag("Inactive", "warn")}
-                  {tag(weekStartLabel(drawerProject.week_start))}
-                </div>
-              </div>
+      <Drawer
+        open={drawerOpen && !!drawerProject}
+        onClose={closeDrawer}
+        title={drawerProject?.name || "Project"}
+        subtitle={
+          drawerProject
+            ? `${drawerProject.is_active ? "Active" : "Inactive"} • ${weekStartLabel(drawerProject.week_start)}`
+            : undefined
+        }
+        footer={
+          <>
+            <button className="pill" onClick={closeDrawer}>
+              Close
+            </button>
+          </>
+        }
+        tabs={
+          drawerProject
+            ? [
+                {
+                  key: "details",
+                  label: "Details",
+                  content: (
+                    <div style={{ display: "grid", gap: 12 }}>
+                      {drawerMsg ? (
+                        <div className="alert alertWarn">
+                          <b>Notice</b>
+                          <div style={{ marginTop: 6 }}>{drawerMsg}</div>
+                        </div>
+                      ) : null}
 
-              <div className="prDrawerActions">
-                <button onClick={closeDrawer}>Close</button>
-              </div>
-            </div>
+                      <div className="card cardPad" style={{ boxShadow: "none" }}>
+                        <FormField
+                          label="Project ID"
+                          helpText="Use this ID for linking and audit history."
+                          right={
+                            <button className="pill" onClick={() => copyToClipboard(drawerProject.id)}>
+                              Copy
+                            </button>
+                          }
+                        >
+                          <div className="mono" style={{ padding: "10px 12px" }}>
+                            {drawerProject.id}
+                          </div>
+                        </FormField>
 
-            <div className="card cardPad" style={{ boxShadow: "none" }}>
-              <div className="prLabel">Project ID</div>
-              <div className="prIdRow">
-                <span className="mono">{drawerProject.id}</span>
-                <button onClick={() => copyToClipboard(drawerProject.id)}>Copy</button>
-              </div>
-            </div>
+                        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <FormField label="Week start" helpText="Controls weekly rollups and approvals.">
+                            {isAdmin ? (
+                              <select
+                                className="select"
+                                value={(drawerProject.week_start || "sunday") as WeekStart}
+                                onChange={(e) => updateProjectWeekStart(drawerProject.id, e.target.value as WeekStart)}
+                              >
+                                <option value="sunday">Sunday</option>
+                                <option value="monday">Monday</option>
+                              </select>
+                            ) : (
+                              <div style={{ padding: "10px 12px" }}>{weekStartLabel(drawerProject.week_start)}</div>
+                            )}
+                          </FormField>
 
-            {drawerMsg ? (
-              <div className="alert alertWarn">
-                <b>Notice</b>
-                <div style={{ marginTop: 6 }}>{drawerMsg}</div>
-              </div>
-            ) : null}
+                          <FormField label="Status" helpText="Inactive projects are hidden from new entries.">
+                            <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                              <Tag tone={drawerProject.is_active ? "success" : "warn"}>
+                                {drawerProject.is_active ? "active" : "inactive"}
+                              </Tag>
+                              {isAdmin ? (
+                                <button
+                                  className={drawerProject.is_active ? "pill" : "btnPrimary"}
+                                  onClick={() => toggleProjectActive(drawerProject.id, !drawerProject.is_active)}
+                                >
+                                  {drawerProject.is_active ? "Deactivate" : "Activate"}
+                                </button>
+                              ) : null}
+                            </div>
+                          </FormField>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: "members",
+                  label: `Members ${drawerMembers.length}`,
+                  content: (
+                    <div style={{ display: "grid", gap: 12 }}>
+                      {drawerBusy ? <div className="muted">Loading members…</div> : null}
 
-            <div className="prDrawerMembers">
-              <div className="prLabel">Members</div>
+                      {!drawerBusy && drawerMembers.length === 0 ? (
+                        <div className="muted">No members assigned yet.</div>
+                      ) : null}
 
-              {drawerBusy ? <div className="muted">Loading members…</div> : null}
+                      <div className="card" style={{ overflow: "hidden", boxShadow: "none" }}>
+                        <div style={{ padding: 12, display: "grid", gap: 10 }}>
+                          {drawerMembers.map((m) => (
+                            <div key={m.profile_id} className="row" style={{ justifyContent: "space-between", gap: 12 }}>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {m.full_name || "(no name)"}
+                                </div>
+                                <div className="muted" style={{ fontSize: 12 }}>
+                                  {m.role || "user"} • <span className="mono">{m.profile_id}</span>
+                                </div>
+                              </div>
 
-              {!drawerBusy && drawerMembers.length === 0 ? (
-                <div className="muted">No members assigned yet.</div>
-              ) : null}
-
-              <div className="prMemberList">
-                {drawerMembers.map((m) => (
-                  <div key={m.profile_id} className="prMemberRow">
-                    <div className="prMemberTop">
-                      <div>
-                        <div className="prMemberName">{m.full_name || "(no name)"}</div>
-                        <div className="prMemberId muted">
-                          {m.role || "user"} • <span className="mono">{m.profile_id}</span>
+                              {isAdmin ? (
+                                <button
+                                  className="pill"
+                                  disabled={memberActionBusy}
+                                  onClick={() => removeDrawerMember(m.profile_id)}
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
                       </div>
 
                       {isAdmin ? (
-                        <button
-                          className="btnDanger"
-                          disabled={memberActionBusy}
-                          onClick={() => removeDrawerMember(m.profile_id)}
-                          title="Remove from project"
-                        >
-                          Remove
-                        </button>
+                        <div className="card cardPad" style={{ boxShadow: "none" }}>
+                          <FormField label="Add member" helpText="Add a person to this project.">
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center" }}>
+                              <select
+                                className="select"
+                                value={memberPickId}
+                                onChange={(e) => setMemberPickId(e.target.value)}
+                              >
+                                <option value="">Select a person…</option>
+                                {availablePeopleToAdd.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {(p.full_name || "(no name)") + (p.role ? ` • ${p.role}` : "")}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                className="btnPrimary"
+                                disabled={!memberPickId || memberActionBusy}
+                                onClick={addDrawerMember}
+                              >
+                                {memberActionBusy ? "Saving…" : "Add"}
+                              </button>
+                            </div>
+                          </FormField>
+
+                          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                            Tip: People → “Manage projects” enables bulk assignment mode.
+                          </div>
+                        </div>
                       ) : null}
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Admin manage members */}
-              {isAdmin ? (
-                <div className="card cardPad" style={{ marginTop: 12, boxShadow: "none" }}>
-                  <div className="prLabel">Add member</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "end" }}>
-                    <div>
-                      <select value={memberPickId} onChange={(e) => setMemberPickId(e.target.value)}>
-                        <option value="">Select a person…</option>
-                        {availablePeopleToAdd.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {(p.full_name || "(no name)") + (p.role ? ` • ${p.role}` : "")}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <button className="btnPrimary" disabled={!memberPickId || memberActionBusy} onClick={addDrawerMember}>
-                        {memberActionBusy ? "Saving…" : "Add"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-                    Tip: People → “Manage projects” enables bulk assignment mode.
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="prDrawerFooter muted">Keep projects active/inactive instead of deleting for cleaner history.</div>
-          </div>
-        </div>
-      ) : null}
+                  ),
+                },
+              ]
+            : []
+        }
+      />
     </AppShell>
   );
 }
