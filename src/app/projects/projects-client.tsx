@@ -88,6 +88,7 @@ export default function ProjectsClient() {
   // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerProjectId, setDrawerProjectId] = useState<string>("");
+  const [drawerTab, setDrawerTab] = useState<"details" | "members">("details");
   const [drawerMembers, setDrawerMembers] = useState<DrawerMember[]>([]);
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerMsg, setDrawerMsg] = useState<string>("");
@@ -432,6 +433,7 @@ export default function ProjectsClient() {
 
     setDrawerOpen(true);
     setDrawerProjectId(projectId);
+    setDrawerTab("details");
     setDrawerMembers([]);
     setDrawerMsg("");
     setMemberPickId("");
@@ -466,6 +468,7 @@ export default function ProjectsClient() {
   function closeDrawer() {
     setDrawerOpen(false);
     setDrawerProjectId("");
+    setDrawerTab("details");
     setDrawerMembers([]);
     setDrawerMsg("");
     setMemberPickId("");
@@ -816,145 +819,135 @@ export default function ProjectsClient() {
         tabs={
           drawerProject
             ? [
-                {
-                  key: "details",
-                  label: "Details",
-                  content: (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {drawerMsg ? (
-                        <div className="alert alertWarn">
-                          <b>Notice</b>
-                          <div style={{ marginTop: 6 }}>{drawerMsg}</div>
-                        </div>
-                      ) : null}
-
-                      <div className="card cardPad" style={{ boxShadow: "none" }}>
-                        <FormField
-                          label="Project ID"
-                          helpText="Use this ID for linking and audit history."
-                          right={
-                            <button className="pill" onClick={() => copyToClipboard(drawerProject.id)}>
-                              Copy
-                            </button>
-                          }
-                        >
-                          <div className="mono" style={{ padding: "10px 12px" }}>
-                            {drawerProject.id}
-                          </div>
-                        </FormField>
-
-                        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                          <FormField label="Week start" helpText="Controls weekly rollups and approvals.">
-                            {isAdmin ? (
-                              <select
-                                className="select"
-                                value={(drawerProject.week_start || "sunday") as WeekStart}
-                                onChange={(e) => updateProjectWeekStart(drawerProject.id, e.target.value as WeekStart)}
-                              >
-                                <option value="sunday">Sunday</option>
-                                <option value="monday">Monday</option>
-                              </select>
-                            ) : (
-                              <div style={{ padding: "10px 12px" }}>{weekStartLabel(drawerProject.week_start)}</div>
-                            )}
-                          </FormField>
-
-                          <FormField label="Status" helpText="Inactive projects are hidden from new entries.">
-                            <div className="row" style={{ gap: 10, alignItems: "center" }}>
-                              <Tag tone={drawerProject.is_active ? "success" : "warn"}>
-                                {drawerProject.is_active ? "active" : "inactive"}
-                              </Tag>
-                              {isAdmin ? (
-                                <button
-                                  className={drawerProject.is_active ? "pill" : "btnPrimary"}
-                                  onClick={() => toggleProjectActive(drawerProject.id, !drawerProject.is_active)}
-                                >
-                                  {drawerProject.is_active ? "Deactivate" : "Activate"}
-                                </button>
-                              ) : null}
-                            </div>
-                          </FormField>
-                        </div>
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  key: "members",
-                  label: `Members ${drawerMembers.length}`,
-                  content: (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {drawerBusy ? <div className="muted">Loading members…</div> : null}
-
-                      {!drawerBusy && drawerMembers.length === 0 ? (
-                        <div className="muted">No members assigned yet.</div>
-                      ) : null}
-
-                      <div className="card" style={{ overflow: "hidden", boxShadow: "none" }}>
-                        <div style={{ padding: 12, display: "grid", gap: 10 }}>
-                          {drawerMembers.map((m) => (
-                            <div key={m.profile_id} className="row" style={{ justifyContent: "space-between", gap: 12 }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {m.full_name || "(no name)"}
-                                </div>
-                                <div className="muted" style={{ fontSize: 12 }}>
-                                  {m.role || "user"} • <span className="mono">{m.profile_id}</span>
-                                </div>
-                              </div>
-
-                              {isAdmin ? (
-                                <button
-                                  className="pill"
-                                  disabled={memberActionBusy}
-                                  onClick={() => removeDrawerMember(m.profile_id)}
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {isAdmin ? (
-                        <div className="card cardPad" style={{ boxShadow: "none" }}>
-                          <FormField label="Add member" helpText="Add a person to this project.">
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center" }}>
-                              <select
-                                className="select"
-                                value={memberPickId}
-                                onChange={(e) => setMemberPickId(e.target.value)}
-                              >
-                                <option value="">Select a person…</option>
-                                {availablePeopleToAdd.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {(p.full_name || "(no name)") + (p.role ? ` • ${p.role}` : "")}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                className="btnPrimary"
-                                disabled={!memberPickId || memberActionBusy}
-                                onClick={addDrawerMember}
-                              >
-                                {memberActionBusy ? "Saving…" : "Add"}
-                              </button>
-                            </div>
-                          </FormField>
-
-                          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-                            Tip: People → “Manage projects” enables bulk assignment mode.
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ),
-                },
+                { key: "details", label: "Details" },
+                { key: "members", label: "Members", count: drawerMembers.length },
               ]
             : []
         }
-      />
+        activeTab={drawerTab}
+        onTabChange={(k) => setDrawerTab(k === "members" ? "members" : "details")}
+      >
+        {!drawerProject ? null : drawerTab === "details" ? (
+          <div style={{ display: "grid", gap: 12 }}>
+            {drawerMsg ? (
+              <div className="alert alertWarn">
+                <b>Notice</b>
+                <div style={{ marginTop: 6 }}>{drawerMsg}</div>
+              </div>
+            ) : null}
+
+            <div className="card cardPad" style={{ boxShadow: "none" }}>
+              <FormField
+                label="Project ID"
+                helpText="Use this ID for linking and audit history."
+                right={
+                  <button className="pill" onClick={() => copyToClipboard(drawerProject.id)}>
+                    Copy
+                  </button>
+                }
+              >
+                <div className="mono" style={{ padding: "10px 12px" }}>
+                  {drawerProject.id}
+                </div>
+              </FormField>
+
+              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <FormField label="Week start" helpText="Controls weekly rollups and approvals.">
+                  {isAdmin ? (
+                    <select
+                      className="select"
+                      value={(drawerProject.week_start || "sunday") as WeekStart}
+                      onChange={(e) => updateProjectWeekStart(drawerProject.id, e.target.value as WeekStart)}
+                    >
+                      <option value="sunday">Sunday</option>
+                      <option value="monday">Monday</option>
+                    </select>
+                  ) : (
+                    <div style={{ padding: "10px 12px" }}>{weekStartLabel(drawerProject.week_start)}</div>
+                  )}
+                </FormField>
+
+                <FormField label="Status" helpText="Inactive projects are hidden from new entries.">
+                  <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                    <Tag tone={drawerProject.is_active ? "success" : "warn"}>
+                      {drawerProject.is_active ? "active" : "inactive"}
+                    </Tag>
+                    {isAdmin ? (
+                      <button
+                        className={drawerProject.is_active ? "pill" : "btnPrimary"}
+                        onClick={() => toggleProjectActive(drawerProject.id, !drawerProject.is_active)}
+                      >
+                        {drawerProject.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    ) : null}
+                  </div>
+                </FormField>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {drawerBusy ? <div className="muted">Loading members…</div> : null}
+
+            {!drawerBusy && drawerMembers.length === 0 ? <div className="muted">No members assigned yet.</div> : null}
+
+            <div className="card" style={{ overflow: "hidden", boxShadow: "none" }}>
+              <div style={{ padding: 12, display: "grid", gap: 10 }}>
+                {drawerMembers.map((m) => (
+                  <div key={m.profile_id} className="row" style={{ justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {m.full_name || "(no name)"}
+                      </div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {m.role || "user"} • <span className="mono">{m.profile_id}</span>
+                      </div>
+                    </div>
+
+                    {isAdmin ? (
+                      <button
+                        className="pill"
+                        disabled={memberActionBusy}
+                        onClick={() => removeDrawerMember(m.profile_id)}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {isAdmin ? (
+              <div className="card cardPad" style={{ boxShadow: "none" }}>
+                <FormField label="Add member" helpText="Add a person to this project.">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center" }}>
+                    <select className="select" value={memberPickId} onChange={(e) => setMemberPickId(e.target.value)}>
+                      <option value="">Select a person…</option>
+                      {availablePeopleToAdd.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {(p.full_name || "(no name)") + (p.role ? ` • ${p.role}` : "")}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="btnPrimary"
+                      disabled={!memberPickId || memberActionBusy}
+                      onClick={addDrawerMember}
+                    >
+                      {memberActionBusy ? "Saving…" : "Add"}
+                    </button>
+                  </div>
+                </FormField>
+
+                <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                  Tip: People → “Manage projects” enables bulk assignment mode.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Drawer>
     </AppShell>
   );
 }
