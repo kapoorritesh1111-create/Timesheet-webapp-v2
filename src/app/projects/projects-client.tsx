@@ -840,47 +840,58 @@ export default function ProjectsClient() {
               <FormField
                 label="Project ID"
                 helpText="Use this ID for linking and audit history."
-                right={
+                helpMode="tooltip"
+                hintRight={
                   <button className="pill" onClick={() => copyToClipboard(drawerProject.id)}>
                     Copy
                   </button>
                 }
               >
-                <div className="mono" style={{ padding: "10px 12px" }}>
-                  {drawerProject.id}
-                </div>
+                {({ id, describedBy }) => (
+                  <div id={id} aria-describedby={describedBy} className="mono" style={{ padding: "10px 12px" }}>
+                    {drawerProject.id}
+                  </div>
+                )}
               </FormField>
 
               <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <FormField label="Week start" helpText="Controls weekly rollups and approvals.">
-                  {isAdmin ? (
-                    <select
-                      className="select"
-                      value={(drawerProject.week_start || "sunday") as WeekStart}
-                      onChange={(e) => updateProjectWeekStart(drawerProject.id, e.target.value as WeekStart)}
-                    >
-                      <option value="sunday">Sunday</option>
-                      <option value="monday">Monday</option>
-                    </select>
-                  ) : (
-                    <div style={{ padding: "10px 12px" }}>{weekStartLabel(drawerProject.week_start)}</div>
-                  )}
+                <FormField label="Week start" helpText="Controls weekly rollups and approvals." helpMode="tooltip">
+                  {({ id, describedBy }) =>
+                    isAdmin ? (
+                      <select
+                        id={id}
+                        aria-describedby={describedBy}
+                        className="select"
+                        value={(drawerProject.week_start || "sunday") as WeekStart}
+                        onChange={(e) => updateProjectWeekStart(drawerProject.id, e.target.value as WeekStart)}
+                      >
+                        <option value="sunday">Sunday</option>
+                        <option value="monday">Monday</option>
+                      </select>
+                    ) : (
+                      <div id={id} aria-describedby={describedBy} style={{ padding: "10px 12px" }}>
+                        {weekStartLabel(drawerProject.week_start)}
+                      </div>
+                    )
+                  }
                 </FormField>
 
-                <FormField label="Status" helpText="Inactive projects are hidden from new entries.">
-                  <div className="row" style={{ gap: 10, alignItems: "center" }}>
-                    <Tag tone={drawerProject.is_active ? "success" : "warn"}>
-                      {drawerProject.is_active ? "active" : "inactive"}
-                    </Tag>
-                    {isAdmin ? (
-                      <button
-                        className={drawerProject.is_active ? "pill" : "btnPrimary"}
-                        onClick={() => toggleProjectActive(drawerProject.id, !drawerProject.is_active)}
-                      >
-                        {drawerProject.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                    ) : null}
-                  </div>
+                <FormField label="Status" helpText="Inactive projects are hidden from new entries." helpMode="tooltip">
+                  {({ id, describedBy }) => (
+                    <div id={id} aria-describedby={describedBy} className="row" style={{ gap: 10, alignItems: "center" }}>
+                      <Tag tone={drawerProject.is_active ? "success" : "warn"}>
+                        {drawerProject.is_active ? "active" : "inactive"}
+                      </Tag>
+                      {isAdmin ? (
+                        <button
+                          className={drawerProject.is_active ? "pill" : "btnPrimary"}
+                          onClick={() => toggleProjectActive(drawerProject.id, !drawerProject.is_active)}
+                        >
+                          {drawerProject.is_active ? "Deactivate" : "Activate"}
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                 </FormField>
               </div>
             </div>
@@ -920,24 +931,34 @@ export default function ProjectsClient() {
 
             {isAdmin ? (
               <div className="card cardPad" style={{ boxShadow: "none" }}>
-                <FormField label="Add member" helpText="Add a person to this project.">
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center" }}>
-                    <select className="select" value={memberPickId} onChange={(e) => setMemberPickId(e.target.value)}>
-                      <option value="">Select a person…</option>
-                      {availablePeopleToAdd.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {(p.full_name || "(no name)") + (p.role ? ` • ${p.role}` : "")}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="btnPrimary"
-                      disabled={!memberPickId || memberActionBusy}
-                      onClick={addDrawerMember}
+                <FormField label="Add member" helpText="Add a person to this project." helpMode="tooltip">
+                  {({ id, describedBy }) => (
+                    <div
+                      aria-describedby={describedBy}
+                      style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center" }}
                     >
-                      {memberActionBusy ? "Saving…" : "Add"}
-                    </button>
-                  </div>
+                      <select
+                        id={id}
+                        className="select"
+                        value={memberPickId}
+                        onChange={(e) => setMemberPickId(e.target.value)}
+                      >
+                        <option value="">Select a person…</option>
+                        {availablePeopleToAdd.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {(p.full_name || "(no name)") + (p.role ? ` • ${p.role}` : "")}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="btnPrimary"
+                        disabled={!memberPickId || memberActionBusy}
+                        onClick={addDrawerMember}
+                      >
+                        {memberActionBusy ? "Saving…" : "Add"}
+                      </button>
+                    </div>
+                  )}
                 </FormField>
 
                 <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
