@@ -80,6 +80,7 @@ export default function ProjectsClient() {
   const [newName, setNewName] = useState("");
   const [newWeekStart, setNewWeekStart] = useState<WeekStart>("sunday");
   const [createBusy, setCreateBusy] = useState(false);
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
 
   // Filters
   const [q, setQ] = useState("");
@@ -340,14 +341,14 @@ export default function ProjectsClient() {
     }
   }
 
-  async function createProject() {
-    if (!profile) return;
-    if (!isAdmin) return;
+  async function createProject(): Promise<boolean> {
+    if (!profile) return false;
+    if (!isAdmin) return false;
 
     const name = newName.trim();
     if (name.length < 2) {
       setFetchErr("Project name must be at least 2 characters.");
-      return;
+      return false;
     }
 
     setCreateBusy(true);
@@ -363,12 +364,13 @@ export default function ProjectsClient() {
 
       if (error) {
         setFetchErr(error.message);
-        return;
+        return false;
       }
 
       setNewName("");
       setNewWeekStart("sunday");
       await reloadProjects();
+      return true;
     } finally {
       setCreateBusy(false);
     }
@@ -619,32 +621,7 @@ export default function ProjectsClient() {
         </div>
       ) : null}
 
-      {/* Admin: create project */}
-      {isAdmin ? (
-        <div className="card cardPad" style={{ marginTop: 12 }}>
-          <div className="prLabel">Create project</div>
-          <div className="prCreateGrid">
-            <div>
-              <div className="prLabel">Project name</div>
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g., Store remodel" />
-            </div>
-
-            <div>
-              <div className="prLabel">Week start</div>
-              <select value={newWeekStart} onChange={(e) => setNewWeekStart(e.target.value as WeekStart)}>
-                <option value="sunday">Sunday</option>
-                <option value="monday">Monday</option>
-              </select>
-            </div>
-
-            <div className="prCreateBtnWrap">
-              <button className="btnPrimary" disabled={createBusy} onClick={createProject}>
-                {createBusy ? "Creating…" : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {/* Admin: create project moved into Drawer for Monday-style UX */}
 
       <div style={{ maxWidth: 1100, marginTop: 12 }}>
         <ToolbarBlock
@@ -652,12 +629,14 @@ export default function ProjectsClient() {
             <>
               <div className="peopleSearch">
                 <Search size={16} />
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…" />
+                <input name="project_search" aria-label="Search projects" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…" />
               </div>
 
               <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <select
                   className="select"
+                  name="project_filter_status"
+                  aria-label="Project status filter"
                   value={activeFilter}
                   onChange={(e) => setActiveFilter(e.target.value as ActiveFilter)}
                   style={{ width: 170 }}
@@ -668,6 +647,7 @@ export default function ProjectsClient() {
                 </select>
 
                 <button
+                  type="button"
                   className="pill"
                   onClick={() => {
                     setQ("");
@@ -683,7 +663,17 @@ export default function ProjectsClient() {
             <>
               {manageUser ? pill("Assignment mode", "success") : null}
               {selectedProjectId ? pill("Selected", "success") : pill("No project selected", "warn")}
-              <button className="pill" onClick={reloadProjects}>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className="btnPrimary"
+                  style={{ padding: "8px 12px" }}
+                  onClick={() => setCreateDrawerOpen(true)}
+                >
+                  New project
+                </button>
+              ) : null}
+              <button type="button" className="pill" onClick={reloadProjects}>
                 Refresh
               </button>
             </>
@@ -742,6 +732,8 @@ export default function ProjectsClient() {
                 isAdmin ? (
                   <select
                     className="select"
+                    name={`project_week_start_${p.id}`}
+                    aria-label="Week start"
                     value={(p.week_start || "sunday") as WeekStart}
                     disabled={savingWeekStartId === p.id}
                     onChange={(e) => updateProjectWeekStart(p.id, e.target.value as WeekStart)}
@@ -765,6 +757,8 @@ export default function ProjectsClient() {
                   <label style={{ display: "flex", gap: 10, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
+                      name={`project_assigned_${p.id}`}
+                      aria-label="Assigned"
                       checked={assigned}
                       disabled={busyProjectId === p.id}
                       onChange={(e) => toggleAssignment(p.id, e.target.checked)}
@@ -783,6 +777,7 @@ export default function ProjectsClient() {
               cell: (p) =>
                 isAdmin ? (
                   <button
+                    type="button"
                     className={p.is_active ? "pill" : "btnPrimary"}
                     disabled={busyProjectId === p.id}
                     onClick={(e) => {
@@ -966,6 +961,75 @@ export default function ProjectsClient() {
                 </div>
               </div>
             ) : null}
+          </div>
+        )}
+      </Drawer>
+
+      {/* Create Project Drawer (Admin) */}
+      <Drawer
+        open={createDrawerOpen}
+        onClose={() => setCreateDrawerOpen(false)}
+        title="New project"
+        subtitle="Create a project for your org"
+        footer={
+          <>
+            <button className="pill" type="button" onClick={() => setCreateDrawerOpen(false)} disabled={createBusy}>
+              Cancel
+            </button>
+            <button
+              className="btnPrimary"
+              type="button"
+              onClick={async () => {
+                const ok = await createProject();
+                if (ok) setCreateDrawerOpen(false);
+              }}
+              disabled={createBusy || !newName.trim()}
+            >
+              {createBusy ? "Creating…" : "Create"}
+            </button>
+          </>
+        }
+      >
+        {!isAdmin ? (
+          <div className="muted">Only admins can create projects.</div>
+        ) : (
+          <div className="card cardPad" style={{ boxShadow: "none" }}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <FormField label="Project name" helpText="Shown in timesheets and reports." helpMode="tooltip">
+                {({ id, describedBy }) => (
+                  <input
+                    id={id}
+                    name="project_name"
+                    aria-describedby={describedBy}
+                    className="input"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g., Store remodel"
+                    autoComplete="off"
+                  />
+                )}
+              </FormField>
+
+              <FormField label="Week start" helpText="Controls weekly rollups and approvals." helpMode="tooltip">
+                {({ id, describedBy }) => (
+                  <select
+                    id={id}
+                    name="project_week_start"
+                    aria-describedby={describedBy}
+                    className="select"
+                    value={newWeekStart}
+                    onChange={(e) => setNewWeekStart(e.target.value as WeekStart)}
+                  >
+                    <option value="sunday">Sunday</option>
+                    <option value="monday">Monday</option>
+                  </select>
+                )}
+              </FormField>
+
+              <div className="muted" style={{ fontSize: 12 }}>
+                Tip: Create the project first, then add members in the Project drawer.
+              </div>
+            </div>
           </div>
         )}
       </Drawer>

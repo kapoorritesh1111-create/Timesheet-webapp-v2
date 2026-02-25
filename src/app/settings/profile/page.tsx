@@ -6,6 +6,7 @@ import RequireOnboarding from "../../../components/auth/RequireOnboarding";
 import AppShell from "../../../components/layout/AppShell";
 import { useProfile } from "../../../lib/useProfile";
 import { supabase } from "../../../lib/supabaseBrowser";
+import FormField from "../../../components/ui/FormField";
 
 // Icons (install if needed: npm i lucide-react)
 import {
@@ -29,6 +30,49 @@ type Section =
   | "language"
   | "password"
   | "sessions";
+
+type AddressParts = {
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+};
+
+function parseAddress(value: any): AddressParts {
+  const empty: AddressParts = {
+    address1: "",
+    address2: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "USA",
+  };
+
+  const raw = String(value || "").trim();
+  if (!raw) return empty;
+
+  // If stored as JSON, prefer structured fields
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") {
+      return {
+        address1: String(obj.address1 || ""),
+        address2: String(obj.address2 || ""),
+        city: String(obj.city || ""),
+        state: String(obj.state || ""),
+        zip: String(obj.zip || ""),
+        country: String(obj.country || "USA"),
+      };
+    }
+  } catch {
+    // ignore
+  }
+
+  // Fallback: best-effort from a single-line freeform address
+  return { ...empty, address1: raw };
+}
 
 function initialsFromName(name?: string) {
   const n = (name || "").trim();
@@ -61,7 +105,12 @@ export default function MyProfilePage() {
   const [section, setSection] = useState<Section>("personal");
 
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [addr1, setAddr1] = useState("");
+  const [addr2, setAddr2] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
+  const [country, setCountry] = useState<"USA" | string>("USA");
   const [avatarUrl, setAvatarUrl] = useState("");
 
   // Upload state
@@ -79,14 +128,62 @@ export default function MyProfilePage() {
 
   const initials = useMemo(() => initialsFromName(fullName), [fullName]);
 
+  const locationLabel = useMemo(() => {
+    const parts = [city, state].filter(Boolean).join(", ");
+    const c = (country || "USA").trim();
+    if (parts && c) return `${parts} • ${c}`;
+    if (parts) return parts;
+    if (zip) return `${zip} • ${c || "USA"}`;
+    if (addr1) return c || "USA";
+    return "Add a location";
+  }, [addr1, city, state, zip, country]);
+
   useEffect(() => {
     setPhone(profile?.phone || "");
-    setAddress(profile?.address || "");
+    const p = parseAddress(profile?.address);
+    setAddr1(p.address1);
+    setAddr2(p.address2);
+    setCity(p.city);
+    setState(p.state);
+    setZip(p.zip);
+    setCountry(p.country || "USA");
     setAvatarUrl(profile?.avatar_url || "");
     // clear local upload draft when profile changes
     setAvatarFile(null);
     setAvatarPreview("");
   }, [profile?.id]);
+
+  // ZIP → City/State autofill (USA) using zippopotam.us (client-side)
+  useEffect(() => {
+    const z = (zip || "").trim();
+    const isUsa = (country || "USA").toUpperCase().includes("US");
+    if (!isUsa) return;
+    if (!/^\d{5}$/.test(z)) return;
+
+    let cancelled = false;
+    const t = setTimeout(() => {
+      (async () => {
+        try {
+          const res = await fetch(`https://api.zippopotam.us/us/${z}`);
+          if (!res.ok) return;
+          const data: any = await res.json();
+          if (cancelled) return;
+          const place = data?.places?.[0];
+          const newCity = place?.["place name"] || "";
+          const newState = place?.["state abbreviation"] || place?.state || "";
+          if (newCity) setCity(newCity);
+          if (newState) setState(newState);
+        } catch {
+          // ignore
+        }
+      })();
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [zip, country]);
 
   // Cleanup object URL
   useEffect(() => {
@@ -142,11 +239,20 @@ export default function MyProfilePage() {
     if (!userId) return;
     setSaving(true);
 
+    const addressJson = JSON.stringify({
+      address1: addr1 || "",
+      address2: addr2 || "",
+      city: city || "",
+      state: state || "",
+      zip: zip || "",
+      country: country || "USA",
+    });
+
     const { error: upErr } = await supabase
       .from("profiles")
       .update({
         phone: phone || null,
-        address: address || null,
+        address: addressJson,
         avatar_url: avatarUrl || null,
       })
       .eq("id", userId);
@@ -169,11 +275,11 @@ export default function MyProfilePage() {
     enabled: boolean;
   }> = [
     { id: "personal", label: "Personal info", icon: User, enabled: true },
-    { id: "status", label: "Working status", icon: Activity, enabled: false },
-    { id: "notifications", label: "Notifications", icon: Bell, enabled: false },
-    { id: "language", label: "Language & region", icon: Globe, enabled: false },
-    { id: "password", label: "Password", icon: KeyRound, enabled: false },
-    { id: "sessions", label: "Session history", icon: History, enabled: false },
+    { id: "status", label: "Working status", icon: Activity, enabled: true },
+    { id: "notifications", label: "Notifications", icon: Bell, enabled: true },
+    { id: "language", label: "Language & region", icon: Globe, enabled: true },
+    { id: "password", label: "Password", icon: KeyRound, enabled: true },
+    { id: "sessions", label: "Session history", icon: History, enabled: true },
   ];
 
   return (
@@ -331,7 +437,7 @@ export default function MyProfilePage() {
                       <div>
                         <div style={{ fontWeight: 900, fontSize: 12 }}>Location</div>
                         <div className="muted" style={{ fontSize: 12 }}>
-                          {address ? "Saved" : "Add a location"}
+                          {locationLabel}
                         </div>
                       </div>
                     </div>
@@ -347,27 +453,120 @@ export default function MyProfilePage() {
                       CONTACT
                     </div>
 
-                    <div style={{ marginTop: 12 }}>
-                      <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>
-                        Phone
-                      </div>
-                      <input
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="(555) 555-5555"
-                      />
-                    </div>
+                    <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                      <FormField label="Phone" helpText="Used for account and admin contact." helpMode="tooltip">
+                        {({ id, describedBy }) => (
+                          <input
+                            id={id}
+                            name="phone"
+                            aria-describedby={describedBy}
+                            className="input"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="(555) 555-5555"
+                            autoComplete="tel"
+                          />
+                        )}
+                      </FormField>
 
-                    <div style={{ marginTop: 12 }}>
-                      <div className="muted" style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>
-                        Address / Location
+                      <FormField label="Address line 1" helpText="Street address." helpMode="tooltip">
+                        {({ id, describedBy }) => (
+                          <input
+                            id={id}
+                            name="address1"
+                            aria-describedby={describedBy}
+                            className="input"
+                            value={addr1}
+                            onChange={(e) => setAddr1(e.target.value)}
+                            placeholder="123 Main St"
+                            autoComplete="address-line1"
+                          />
+                        )}
+                      </FormField>
+
+                      <FormField label="Address line 2" helpText="Apt, suite, unit, etc." helpMode="tooltip">
+                        {({ id, describedBy }) => (
+                          <input
+                            id={id}
+                            name="address2"
+                            aria-describedby={describedBy}
+                            className="input"
+                            value={addr2}
+                            onChange={(e) => setAddr2(e.target.value)}
+                            placeholder="Apt 4B"
+                            autoComplete="address-line2"
+                          />
+                        )}
+                      </FormField>
+
+                      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <FormField label="ZIP" helpText="If entered, City & State will auto-fill (USA)." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <input
+                              id={id}
+                              name="zip"
+                              aria-describedby={describedBy}
+                              className="input"
+                              value={zip}
+                              onChange={(e) => setZip(e.target.value)}
+                              placeholder="94105"
+                              autoComplete="postal-code"
+                            />
+                          )}
+                        </FormField>
+
+                        <FormField label="Country" helpText="Default is USA." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <select
+                              id={id}
+                              name="country"
+                              aria-describedby={describedBy}
+                              className="select"
+                              value={country}
+                              onChange={(e) => setCountry(e.target.value)}
+                              autoComplete="country-name"
+                            >
+                              <option value="USA">USA</option>
+                              <option value="Canada">Canada</option>
+                              <option value="UK">UK</option>
+                              <option value="India">India</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          )}
+                        </FormField>
                       </div>
-                      <textarea
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        rows={5}
-                        placeholder="Street, City, State, Zip"
-                      />
+
+                      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <FormField label="City" helpText="Auto-fills from ZIP in the USA." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <input
+                              id={id}
+                              name="city"
+                              aria-describedby={describedBy}
+                              className="input"
+                              value={city}
+                              onChange={(e) => setCity(e.target.value)}
+                              placeholder="San Francisco"
+                              autoComplete="address-level2"
+                            />
+                          )}
+                        </FormField>
+
+                        <FormField label="State" helpText="Auto-fills from ZIP in the USA." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <input
+                              id={id}
+                              name="state"
+                              aria-describedby={describedBy}
+                              className="input"
+                              value={state}
+                              onChange={(e) => setState(e.target.value)}
+                              placeholder="CA"
+                              autoComplete="address-level1"
+                            />
+                          )}
+                        </FormField>
+                      </div>
                     </div>
 
                     <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -405,9 +604,120 @@ export default function MyProfilePage() {
                   </div>
                 </div>
               ) : (
-                <div style={{ marginTop: 14 }} className="card cardPad">
-                  <div className="muted">
-                    This section is coming soon. We’ll keep the layout consistent with your Monday-like shell.
+                <div style={{ marginTop: 14 }} className="grid2">
+                  {section === "status" ? (
+                    <div className="card cardPad">
+                      <div className="muted" style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.08em" }}>
+                        WORKING STATUS
+                      </div>
+                      <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                        <FormField label="Status" helpText="Displayed to admins/managers in People." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <select id={id} aria-describedby={describedBy} className="select" defaultValue="available">
+                              <option value="available">Available</option>
+                              <option value="busy">Busy</option>
+                              <option value="offline">Offline</option>
+                            </select>
+                          )}
+                        </FormField>
+                        <div className="alert alertInfo">
+                          Coming next: we’ll persist this setting per user and surface it in the People directory.
+                        </div>
+                      </div>
+                    </div>
+                  ) : section === "notifications" ? (
+                    <div className="card cardPad">
+                      <div className="muted" style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.08em" }}>
+                        NOTIFICATIONS
+                      </div>
+                      <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                        <label className="row" style={{ gap: 10, alignItems: "center" }}>
+                          <input type="checkbox" defaultChecked />
+                          <span>Weekly summary emails</span>
+                        </label>
+                        <label className="row" style={{ gap: 10, alignItems: "center" }}>
+                          <input type="checkbox" defaultChecked />
+                          <span>Approval reminders</span>
+                        </label>
+                        <label className="row" style={{ gap: 10, alignItems: "center" }}>
+                          <input type="checkbox" />
+                          <span>Project assignment updates</span>
+                        </label>
+                        <div className="alert alertInfo">Coming next: save preferences + connect to email/alerts.</div>
+                      </div>
+                    </div>
+                  ) : section === "language" ? (
+                    <div className="card cardPad">
+                      <div className="muted" style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.08em" }}>
+                        LANGUAGE & REGION
+                      </div>
+                      <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                        <FormField label="Language" helpText="Affects labels and date formats." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <select id={id} aria-describedby={describedBy} className="select" defaultValue="en">
+                              <option value="en">English</option>
+                              <option value="es">Spanish</option>
+                              <option value="hi">Hindi</option>
+                            </select>
+                          )}
+                        </FormField>
+                        <FormField label="Time zone" helpText="Used for timesheet weeks and approvals." helpMode="tooltip">
+                          {({ id, describedBy }) => (
+                            <select id={id} aria-describedby={describedBy} className="select" defaultValue="local">
+                              <option value="local">Use device time zone</option>
+                              <option value="America/New_York">America/New_York</option>
+                              <option value="America/Chicago">America/Chicago</option>
+                              <option value="America/Los_Angeles">America/Los_Angeles</option>
+                            </select>
+                          )}
+                        </FormField>
+                        <div className="alert alertInfo">Coming next: persist settings per user.</div>
+                      </div>
+                    </div>
+                  ) : section === "password" ? (
+                    <div className="card cardPad">
+                      <div className="muted" style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.08em" }}>
+                        PASSWORD
+                      </div>
+                      <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                        <div className="muted">
+                          Password changes are handled securely via the reset flow.
+                        </div>
+                        <button className="btnPrimary" type="button" onClick={() => (window.location.href = "/reset")}>
+                          Reset password
+                        </button>
+                        <div className="alert alertInfo">Coming next: session history + device management.</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="card cardPad">
+                      <div className="muted" style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.08em" }}>
+                        SESSION HISTORY
+                      </div>
+                      <div style={{ marginTop: 12 }}>
+                        <div className="muted">
+                          We’ll show recent sign-ins, devices, and active sessions here.
+                        </div>
+                        <div className="alert alertInfo" style={{ marginTop: 12 }}>
+                          Coming next: pull sessions from auth logs and allow sign-out of other sessions.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="card cardPad">
+                    <div className="muted" style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.08em" }}>
+                      NOTES
+                    </div>
+                    <div className="muted" style={{ marginTop: 12, fontSize: 13, lineHeight: 1.5 }}>
+                      These sections match the Monday-style profile layout and are ready for persistence.
+                      <ul style={{ marginTop: 10 }}>
+                        <li>Working status</li>
+                        <li>Notifications</li>
+                        <li>Language & region</li>
+                        <li>Password + session history</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               )}
