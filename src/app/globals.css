@@ -1506,7 +1506,8 @@ html[data-theme="dark"] .mwPanelFooter {
 .mwTableWrap {
   border: 1px solid var(--border);
   border-radius: 16px;
-  overflow: hidden;
+  /* Allow sticky header + internal scroll when a parent constrains height */
+  overflow: auto;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
@@ -1527,10 +1528,15 @@ html[data-theme="dark"] .mwTableWrap {
   font-size: 12px;
   letter-spacing: .01em;
   font-weight: 900;
-  padding: 12px 12px;
+  padding: 10px 12px;
   background: rgba(0,0,0,0.02);
   border-bottom: 1px solid var(--border);
   color: rgba(15,23,42,0.75);
+
+  /* Monday-like: keep headers visible when the table scrolls */
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 html[data-theme="dark"] .mwTable thead th {
@@ -1540,7 +1546,7 @@ html[data-theme="dark"] .mwTable thead th {
 }
 
 .mwTable tbody td {
-  padding: 12px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(15,23,42,0.06);
   vertical-align: middle;
   font-size: 13px;
@@ -1559,12 +1565,17 @@ html[data-theme="dark"] .mwTable tbody td {
 }
 
 .mwRowClickable:hover td {
-  background: rgba(37,99,235,0.06);
+  /* Softer hover like Monday */
+  background: rgba(37,99,235,0.045);
 }
 
 /* Selected row: subtle highlight + left accent (Monday-like) */
 .mwRowSelected td {
-  background: rgba(37,99,235,0.08);
+  background: rgba(37,99,235,0.055);
+}
+
+.mwRowSelected:hover td {
+  background: rgba(37,99,235,0.07);
 }
 
 .mwRowSelected td:first-child {
@@ -1577,23 +1588,27 @@ html[data-theme="dark"] .mwTable tbody td {
   left: 0;
   top: -1px;
   bottom: -1px;
-  width: 3px;
+  width: 4px;
   background: var(--accent, #2563eb);
   border-radius: 3px;
 }
 
 html[data-theme="dark"] .mwRowClickable:hover td {
-  background: rgba(37,99,235,0.12);
+  background: rgba(37,99,235,0.10);
 }
 
 html[data-theme="dark"] .mwRowSelected td {
-  background: rgba(37,99,235,0.16);
+  background: rgba(37,99,235,0.14);
+}
+
+html[data-theme="dark"] .mwRowSelected:hover td {
+  background: rgba(37,99,235,0.18);
 }
 
 .mwTableCompact thead th,
 .mwTableCompact tbody td {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .mwAlign-center { text-align: center; }
