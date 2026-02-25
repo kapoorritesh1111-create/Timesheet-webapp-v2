@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabaseBrowser";
 import { useProfile } from "../../lib/useProfile";
 import { Copy, Filter, Search } from "lucide-react";
 import DataTable, { Tag } from "../ui/DataTable";
+import ToolbarBlock from "../ui/ToolbarBlock";
 
 type Role = "admin" | "manager" | "contractor";
 
@@ -329,76 +330,77 @@ export default function PeopleDirectory({
 
   return (
     <div className="peopleWrap">
-      {/* Toolbar */}
-      <div className="peopleToolbar card">
-        <div className="peopleToolbarLeft">
-          <div className="peopleSearch">
-            <Search size={16} />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name, role, or ID…"
-            />
-          </div>
-
-          <div className="peopleFilters">
-            <div className="peopleFilter">
-              <Filter size={16} />
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value as any)}
-                aria-label="Role filter"
-              >
-                <option value="all">All roles</option>
-                <option value="admin">Admins</option>
-                <option value="manager">Managers</option>
-                <option value="contractor">Contractors</option>
-              </select>
+      {/* Toolbar (shared layout) */}
+      <ToolbarBlock
+        left={
+          <>
+            <div className="peopleSearch">
+              <Search size={16} />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name, role, or ID…"
+              />
             </div>
 
-            <div className="peopleFilter">
-              <select
-                value={activeFilter}
-                onChange={(e) => setActiveFilter(e.target.value as any)}
-                aria-label="Status filter"
-              >
-                <option value="all">All status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-
-            {/* Scope only makes sense for People mode (admin can switch visible/all) */}
-            {mode === "people" && (
+            <div className="peopleFilters">
               <div className="peopleFilter">
+                <Filter size={16} />
                 <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value as any)}
-                  aria-label="Scope filter"
-                  disabled={!isAdmin}
-                  title={!isAdmin ? "Admin only" : ""}
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value as any)}
+                  aria-label="Role filter"
                 >
-                  <option value="visible">Visible</option>
-                  <option value="all">All org (admin)</option>
+                  <option value="all">All roles</option>
+                  <option value="admin">Admins</option>
+                  <option value="manager">Managers</option>
+                  <option value="contractor">Contractors</option>
                 </select>
               </div>
-            )}
 
-            <button className="pill" onClick={clearFilters}>
-              Clear
-            </button>
-          </div>
-        </div>
+              <div className="peopleFilter">
+                <select
+                  value={activeFilter}
+                  onChange={(e) => setActiveFilter(e.target.value as any)}
+                  aria-label="Status filter"
+                >
+                  <option value="all">All status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
 
-        <div className="peopleToolbarRight">
-          <div className="peopleStatsInline">
+              {mode === "people" && (
+                <div className="peopleFilter">
+                  <select
+                    value={scope}
+                    onChange={(e) => setScope(e.target.value as any)}
+                    aria-label="Scope filter"
+                    disabled={!isAdmin}
+                    title={!isAdmin ? "Admin only" : ""}
+                  >
+                    <option value="visible">Visible</option>
+                    <option value="all">All org (admin)</option>
+                  </select>
+                </div>
+              )}
+
+              <button className="pill" onClick={clearFilters}>
+                Clear
+              </button>
+            </div>
+          </>
+        }
+        right={
+          <>
             <Tag tone="default">Users: {counts.total}</Tag>
             <Tag tone="success">Active: {counts.active}</Tag>
             <Tag tone="warn">Inactive: {counts.inactive}</Tag>
             <Tag tone="default">Showing: {counts.showing}</Tag>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+        message={msg ? <span>{msg}</span> : null}
+      />
 
       {/* Bulk bar */}
       {anySelected && (
@@ -443,8 +445,7 @@ export default function PeopleDirectory({
         </div>
       )}
 
-      {/* Messages */}
-      {msg && <div className="peopleMsg">{msg}</div>}
+      {/* Messages now shown in toolbar */}
 
       {/* Table */}
       <DataTable

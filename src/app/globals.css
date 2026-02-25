@@ -1695,3 +1695,37 @@ html[data-theme="dark"] .mwMenuItem:hover { background: rgba(255,255,255,0.06); 
   opacity: 0.9;
 }
 .mwHelpIcon:hover { opacity: 1; }
+
+/* =========================
+   UI FOUNDATION — TOOLBAR
+   Shared list-page toolbar (Admin Users, People, etc.)
+   ========================= */
+
+.mwToolbar { padding: 14px; }
+.mwToolbarRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mwToolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 320px;
+}
+.mwToolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.mwToolbarMsg { margin-top: 10px; color: var(--muted); font-size: 13px; }
+
+/* Unify common controls inside toolbars */
+.mwToolbar .peopleSearch { min-width: 320px; }
+.mwToolbar .select { height: 36px; }
+.mwToolbar .pill { height: 34px; }

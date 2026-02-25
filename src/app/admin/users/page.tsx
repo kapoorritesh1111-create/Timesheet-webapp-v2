@@ -8,6 +8,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabaseBrowser";
 import { useProfile } from "../../../lib/useProfile";
 import { Search } from "lucide-react";
+import ToolbarBlock from "../../../components/ui/ToolbarBlock";
+import { Tag } from "../../../components/ui/DataTable";
 
 type Role = "admin" | "manager" | "contractor";
 type ManagerLite = { id: string; full_name: string | null };
@@ -134,49 +136,68 @@ function UsersDirectory() {
 
   return (
     <div style={{ maxWidth: 1100 }}>
-      <div className="card cardPad" style={{ marginBottom: 12 }}>
-        <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div className="peopleSearch" style={{ minWidth: 320 }}>
-            <Search size={16} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or ID…" />
-          </div>
+      <ToolbarBlock
+        left={
+          <>
+            <div className="peopleSearch">
+              <Search size={16} />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name, email, or ID…"
+              />
+            </div>
 
-          <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} style={{ width: 160 }}>
-              <option value="all">All roles</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="contractor">Contractor</option>
-            </select>
+            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <select
+                className="select"
+                value={role}
+                onChange={(e) => setRole(e.target.value as any)}
+                style={{ width: 160 }}
+              >
+                <option value="all">All roles</option>
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="contractor">Contractor</option>
+              </select>
 
-            <select className="select" value={status} onChange={(e) => setStatus(e.target.value as any)} style={{ width: 160 }}>
-              <option value="all">All status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+              <select
+                className="select"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                style={{ width: 160 }}
+              >
+                <option value="all">All status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
 
-            <button className="pill" onClick={() => { setQ(""); setRole("all"); setStatus("all"); }}>
-              Clear
-            </button>
-          </div>
-
-          <div className="row" style={{ gap: 8, alignItems: "center" }}>
-            <span className="tag tagMuted">Users: {stats.total}</span>
-            <span className="tag tagOk">Active: {stats.active}</span>
-            <span className="tag tagWarn">Inactive: {stats.inactive}</span>
-            <span className="tag tagMuted">Showing: {stats.showing}</span>
+              <button
+                className="pill"
+                onClick={() => {
+                  setQ("");
+                  setRole("all");
+                  setStatus("all");
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </>
+        }
+        right={
+          <>
+            <Tag tone="default">Users: {stats.total}</Tag>
+            <Tag tone="success">Active: {stats.active}</Tag>
+            <Tag tone="warn">Inactive: {stats.inactive}</Tag>
+            <Tag tone="default">Showing: {stats.showing}</Tag>
             <button className="pill" onClick={load} disabled={loading}>
               {loading ? "Loading…" : "Refresh"}
             </button>
-          </div>
-        </div>
-
-        {msg ? (
-          <div style={{ marginTop: 12 }} className="muted">
-            {msg}
-          </div>
-        ) : null}
-      </div>
+          </>
+        }
+        message={msg ? <span>{msg}</span> : null}
+      />
 
       <div className="card" style={{ overflow: "hidden" }}>
         <div
