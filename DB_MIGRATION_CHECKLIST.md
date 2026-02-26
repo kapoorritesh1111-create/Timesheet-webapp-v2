@@ -31,6 +31,26 @@ Add default:
 - status = draft
 
 ---
+## Phase 1 Status — COMPLETED
+Date: 2026-02-26
+
+Financial integrity protections are now active.
+
+The `time_entries` table now stores immutable payroll snapshots:
+- hourly_rate_snapshot
+- role_snapshot
+- project_name_snapshot
+
+Snapshots are written at INSERT time and preserved across the workflow.
+
+Backfill migration executed to populate historical rows.
+
+Result:
+Timesheet calculations are no longer dependent on live profile or project tables.
+Payroll history remains correct even if:
+- employee hourly rate changes
+- employee role changes
+- project name changes
 
 # 🔵 Phase 2 — Project Financial Model
 
