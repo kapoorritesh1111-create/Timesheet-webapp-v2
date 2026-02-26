@@ -1,10 +1,10 @@
-🚀 Timesheet v2 – 4 Week Execution Roadmap
+# 🚀 Timesheet v2 – 4 Week Execution Roadmap
 
 Product Identity: Contractor Cost Control & Project Governance System
 Version: 1.0
 Date Locked: Feb 2026
 
-🎯 Strategic Direction (Non-Negotiable)
+# 🎯 Strategic Direction (Non-Negotiable)
 
 We are NOT building:
 
@@ -30,8 +30,8 @@ Executive clarity
 
 If a feature does not improve one of these, it does not get built.
 
-🗓️ 4 Week Execution Timeline
-🔵 WEEK 1 — Financial Integrity Foundation
+## 🗓️ 4 Week Execution Timeline
+# 🔵 WEEK 1 — Financial Integrity Foundation
 Goal:
 
 Make time entries audit-grade and immutable.
@@ -109,7 +109,7 @@ Outcome
 
 Traceability and accountability.
 
-🔵 WEEK 2 — Project Financial Intelligence
+# 🔵 WEEK 2 — Project Financial Intelligence
 Goal:
 
 Make Projects financially aware.
@@ -166,7 +166,7 @@ Outcome
 
 Proactive financial control.
 
-🔵 WEEK 3 — Workforce Intelligence
+# 🔵 WEEK 3 — Workforce Intelligence
 Goal:
 
 Executive visibility layer.
@@ -209,7 +209,7 @@ Outcome
 
 Admin understands workforce financial trajectory.
 
-🔵 WEEK 4 — Workflow & Premium Polish
+# 🔵 WEEK 4 — Workflow & Premium Polish
 Goal:
 
 Refine UX and strengthen lifecycle discipline.
@@ -254,7 +254,7 @@ Micro animations
 
 📈 Expected Position After 4 Weeks
 
-We will have:
+# We will have:
 
 ✅ Immutable financial history
 ✅ Budget burn visibility
@@ -271,7 +271,7 @@ More trustworthy than Hubstaff
 Lighter than Replicon
 More operationally useful than basic trackers
 
-🛑 Guardrails
+# 🛑 Guardrails
 
 Do NOT build:
 
@@ -288,7 +288,7 @@ Feature bloat
 Stay focused on:
 Integrity → Visibility → Governance
 
-🔁 How to Resume Work Each Day
+# 🔁 How to Resume Work Each Day
 
 Open new chat and say:
 
