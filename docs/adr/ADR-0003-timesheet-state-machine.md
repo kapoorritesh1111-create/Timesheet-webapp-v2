@@ -16,3 +16,14 @@ Time entries/timesheets follow:
 ## Consequences
 - UI must reflect lock states.
 - DB must enforce/validate transitions (at least via application logic, ideally via constraints/functions).
+### Financial Snapshots
+
+On creation of a time entry, the system records immutable payroll snapshots:
+- hourly_rate_snapshot
+- role_snapshot
+- project_name_snapshot
+
+Snapshots are not recalculated after submission or approval.
+
+Rationale:
+The timesheet acts as an accounting record, not a dynamic report. Historical payroll must remain correct after employee or project changes.
