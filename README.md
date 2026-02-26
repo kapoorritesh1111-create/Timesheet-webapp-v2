@@ -170,6 +170,18 @@ Also includes Monday-style profile navigation with “Coming next” sections:
 * Password
 * Session history
 
+### Payroll Integrity
+
+The system now uses snapshot-based payroll accounting.
+
+Every time entry stores:
+- hourly rate at the time of work
+- user role at the time of work
+- project name at the time of work
+
+This prevents payroll history from changing when employee rates, roles, or project metadata are modified.
+
+This design mirrors enterprise systems such as Replicon and SAP time accounting.
 ---
 
 ## Known gaps / constraints (as of now)
